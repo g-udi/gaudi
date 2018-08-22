@@ -13,7 +13,7 @@ sudo apt-get file
 
 if ! type git &> /dev/null; then
     printf "We noticed that git is not installed on your machine .. Installing now ... \n" -n 1;
-    # Install Homebrew .. a must !
+    # Install git .. a must !
     sudo apt-get install git-all
 fi
 

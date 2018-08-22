@@ -1,7 +1,5 @@
 # Getting the operating system of the machine
 getOperatingSystem () {
-    echo -e "\n[INFO] ${YELLOW}Getting bash version .... ${NC}\n"
-    bash --version
     case `uname` in
     Linux )
         LINUX=1

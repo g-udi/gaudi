@@ -27,8 +27,6 @@ if [ -d "$GAUDI" ]; then
     rm -rf $GAUDI
 fi
 
-echo "=======> ${OS}"
-echo "================================> https://raw.githubusercontent.com/ahmadassaf/gaudi/master/bin/${OS}/install-pre-requisits.sh)"
 # Run the installation pre-requisites based on each operating system defined in gaudi
 getOperatingSystem && sh -c "$(curl -fsSL https://raw.githubusercontent.com/ahmadassaf/gaudi/master/bin/${OS}/install-pre-requisits.sh)"
 

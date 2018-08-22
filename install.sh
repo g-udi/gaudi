@@ -17,14 +17,14 @@ if [ ! -n "$GAUDI" ]; then
     GAUDI=~/.gaudi
 fi
 
-if [ -d "$ZSH" ]; then
+if [ -d "$GAUDI" ]; then
     printf "You already have gaudi installed..\n"
     printf "Setting up a fresh installation of gaudi 🌈"
     rm -rf $GAUDI
 fi
 
 # Run the installation pre-requisites based on each operating system defined in gaudi
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/ahmadassaf/gaudi/tree/master/bin/${OS}/install-pre-requisits.sh)"
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/ahmadassaf/gaudi/blob/master/bin/${OS}/install-pre-requisits.sh)"
 
 env git clone --depth=1 https://github.com/ahmadassaf/gaudi.git "$GAUDI" || {
     printf "Error: Cloning of gaudi into this machine failed :(\n"

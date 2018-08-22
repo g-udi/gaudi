@@ -18,29 +18,29 @@ for item in "${softwareLists[@]}"; do
 
     if [[ $operatingSystem = ${OS} || $operatingSystem = "*" ]]; then
         # We need now to check if we need to run any pre hooks
-        find . -type f -iname `echo -e "pre.${listType}*.hooks.sh"` | while read PRE_HOOK; do
+        find . -type f -iname `echo "pre.${listType}*.hooks.sh"` | while read PRE_HOOK; do
             . "${SOURCE_LOCATION}/$PRE_HOOK"
         done
             
-        for LIST in $(find . -type f -iname `echo -e "*${listType}.list.sh"`); do
+        for LIST in $(find . -type f -iname `echo "*${listType}.list.sh"`); do
             listName=`cat "${SOURCE_LOCATION}/$LIST" | grep "# @List: "`
             if [[ $LIST = *"default"* ]]; then
-                echo -e "\n🤖 Installing ${YELLOW}default ${listType}${NC} software list"
+                echo "\n🤖 Installing ${YELLOW}default ${listType}${NC} software list"
             else
                 _listName=`cat "${SOURCE_LOCATION}/$LIST" | grep "# @Name:"`
                 _listDescription=`cat "${SOURCE_LOCATION}/$LIST" | grep "# @Description:"`
-                echo -e "\n🤖 Installing${YELLOW}${_listName#*:} ${listType}${NC} software list:${MAGENTA}${_listDescription#*:}${NC}"
+                echo "\n🤖 Installing${YELLOW}${_listName#*:} ${listType}${NC} software list:${MAGENTA}${_listDescription#*:}${NC}"
             fi;
             
             read -p "Would you like to proceed ? [Y/N] " -n 1;
-            echo -e ""
+            echo ""
             
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 . "${SOURCE_LOCATION}/$LIST"
-                referencedList=`echo -e "${listName#*:}" | xargs`
+                referencedList=`echo "${listName#*:}" | xargs`
                 __list=$referencedList[@]
                 read -p "Would you like to install all the recommended software [Type N to select what you want to install one by one]? [Y/N] " -n 1;
-                echo -e "";
+                echo "";
                 if [[ $REPLY =~ ^[Yy]$ ]]; then
                     installSoftwareList "$listCommand" "false" "${!__list}"
                 else
@@ -50,7 +50,7 @@ for item in "${softwareLists[@]}"; do
         done;
 
         # We need now to check if we need to run any post hooks
-        find . -type f -iname `echo -e "post.${listType}*.hooks.sh"` | while read PRE_HOOK; do
+        find . -type f -iname `echo "post.${listType}*.hooks.sh"` | while read PRE_HOOK; do
             . "${SOURCE_LOCATION}/$PRE_HOOK"
         done
     fi

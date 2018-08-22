@@ -1,0 +1,29 @@
+# This hook monitors whenever a branch has been switched and alert the dev-ops-staging channel on slack
+# It will print out who made the change and what are the branches changed
+
+#!/bin/bash
+set -e
+
+post_to_slack() {
+  # format message as a code block ```${msg}```
+  SLACK_MESSAGE="\`\`\`$1\`\`\`"
+  SLACK_URL=https://hooks.slack.com/services/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
+
+  curl -X POST --data "payload={\"text\": \":warning: ${SLACK_MESSAGE}\"}" ${SLACK_URL}
+  printf "\nSlack Notification sent as we detected changes in the checked out branch ...\n"
+}
+
+PREV_HEAD=$1
+NEW_HEAD=$2
+CHECKOUT_TYPE=$3
+REPOSITORY_BASENAME=$(basename "$PWD")
+REPOSITORY_BASENAME=${REPOSITORY_BASENAME%.git}
+
+PREV_BRANCH=`git name-rev --name-only $PREV_HEAD`
+NEW_BRANCH=`git name-rev --name-only $NEW_HEAD`
+
+if [[ $CHECKOUT_TYPE == 1 ]]; then
+    if [[ "$PREV_BRANCH" != "$NEW_BRANCH" ]]; then
+        post_to_slack "Staging repo: <https://github.com/SeedJobs/$REPOSITORY_BASENAME|$REPOSITORY_BASENAME> branch has been switched from: <https://github.com/SeedJobs/$REPOSITORY_BASENAME/tree/$PREV_BRANCH|$PREV_BRANCH> to: <https://github.com/SeedJobs/$REPOSITORY_BASENAME/tree/$NEW_BRANCH|$NEW_BRANCH> by: `logname`"
+    fi
+fi

@@ -1,0 +1,15 @@
+redis:
+  image: redis
+
+mongodb:
+  image: tutum/mongodb
+  ports:
+    - "27017:27017"
+  environment:
+    MONGODB_PASS: password
+
+elasticsearch:
+  image: elasticsearch
+  ports:
+    - "9200:9200"
+    - "9300:9300"

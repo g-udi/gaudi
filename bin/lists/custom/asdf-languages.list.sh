@@ -1,0 +1,15 @@
+export asdfLanguagesList=(
+    "java oracle-10.0.2::JDK 10, an implementation of Java Standard Edition 10, was released on March 20, 2018. Key improvements include local variable types as well as enhancements for garbage collection and compilation"
+    "java oracle-8.131::Java 8 is a revolutionary release of the world’s #1 development platform. It includes a huge upgrade to the Java programming model and a coordinated evolution of the JVM, Java language, and libraries"
+    "ruby 2.5.1::Ruby 2.5.1 introduces lots of new features and performance improvements"
+    "kubecfg master::A tool for managing complex enterprise Kubernetes environments as code built from the latest master branch from https://github.com/ksonnet/kubecfg"
+    "terraform 0.11.7::Terraform in its latest update includes improvements to Terraform Registry integration, per-module provider configuration, and improvements to CLI workflow. There have also been improvements to a number of major providers"
+    "vault 0.10.4::Vault secures, stores, and tightly controls access to tokens, passwords, certificates, API keys, and other secrets in modern computing"
+    "haskell 8.4.3::The first new super-major version of our Haskell compiler in six years, GHC 8.0.1. This release features dozens of exciting developments including, A more refined interface for implicit call-stacks, allowing libraries to provide more helpful runtime error messages to users and much more"
+    "golang 1.10.3::Go is an open source programming language that makes it easy to build simple, reliable, and efficient software"
+    "kubectl 1.11.2::Use the Kubernetes command-line tool, kubectl, to deploy and manage applications on Kubernetes. Using kubectl, you can inspect cluster resources; create, delete, and update components"
+    "python 2.7.5::Python is an interpreted high-level programming language for general-purpose programming"
+    "python 3.3.0::Python 3.3 includes a range of improvements of the 3.x series, as well as easier porting between 2.x and 3.x."
+    "python anaconda3-5.2.0::Anaconda is a free and open source distribution of the Python and R programming languages for data science and machine learning related applications, that aims to simplify package management and deployment"
+    "nodejs 10.0.0::Node.js 10 comes packed with significant performance improvements through V8 v6.6 and new experimental features such the fs promise API and time traveling"
+)

@@ -1,0 +1,8 @@
+grunt-cli
+gulp-cli
+webpack
+mocha
+istanbul
+pm2
+ramda-cli
+eslint

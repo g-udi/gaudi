@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "Checking TODOs that you might have left"
+notes -g .gitignore -x node_modules/ -x test/

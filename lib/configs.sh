@@ -8,7 +8,7 @@ export USER=$(whoami)
 # Get the operating system version of the machine 
 # https://unix.stackexchange.com/questions/6345/how-can-i-get-distribution-name-and-version-number-in-a-simple-shell-script
 getOperatingSystem () {
-    echo -e "\n[INFO] ${YELLOW}Getting bash version .... ${NC}\n"
+    echo "\n[INFO] ${YELLOW}Getting bash version .... ${NC}\n"
     bash --version
     case `uname` in
     Linux )

@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 
 # The source directory and target directories | Contains the files and directories I want to work with.
-export SOURCE_LOCATION="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
+if [ ! -n "$GAUDI" ]; then
+    export SOURCE_LOCATION="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
+else
+    export SOURCE_LOCATION=~/.gaudi
+fi
 
 # Load the external configurations
 source "$SOURCE_LOCATION/lib/configs.sh"

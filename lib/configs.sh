@@ -46,13 +46,13 @@ installSoftwareList () {
         fi
         softwareDescription="${listItem##*::}"
         if [[ $isWithPrompt = "true" ]]; then
-            read -p "👾 $(echo "${MAGENTA}$software${NC}\n${YELLOW}Description:${NC} $softwareDescription") | Would you like to install this? [Y/N] " -n 1 </dev/tty
+            read -p "👾 $(echo -e "${MAGENTA}$software${NC}\n${YELLOW}Description:${NC} $softwareDescription") | Would you like to install this? [Y/N] " -n 1 </dev/tty
             echo ""
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 `echo ${installCommand} ${software}`
             fi;
         else
-            echo "\n👾 Installing ${MAGENTA}$software${NC}\n${YELLOW}Description:${NC} $softwareDescription"
+            echo -e "\n👾 Installing ${MAGENTA}$software${NC}\n${YELLOW}Description:${NC} $softwareDescription"
             `echo ${installCommand} ${software}`
         fi
     done

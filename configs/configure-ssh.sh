@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 printf "Setting up SSH Installation...\n"
 
 read -p "Have you configured SSH? [Y/N] " -n 1;

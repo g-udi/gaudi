@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 source "$SOURCE_LOCATION/lib/colors.sh"
 
 export EMAIL_REGEX="^[a-z0-9!#\$%&'*+/=?^_\`{|}~-]+(\.[a-z0-9!#$%&'*+/=?^_\`{|}~-]+)*@([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z0-9]([a-z0-9-]*[a-z0-9])?\$"

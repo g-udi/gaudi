@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # Make sure that BEAMERY_HOME is set
 sh "$SOURCE_LOCATION/configs/lib/configure-beamery-home.sh"
 

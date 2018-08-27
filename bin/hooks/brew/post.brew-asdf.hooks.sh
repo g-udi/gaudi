@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 echo -e "🔬 All brew formulas installed .. setting up few things"
 
 # Check if we have asdf plugins and languages to set

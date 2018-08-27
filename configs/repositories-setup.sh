@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 echo "";
 read -p "Would you like to clone all of the development repositories? [Y/N] " -n 1;
 echo "";

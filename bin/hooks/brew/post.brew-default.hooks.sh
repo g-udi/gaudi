@@ -16,9 +16,13 @@ echo "⚙️  Setting up launchd to start clipper now and restart at login"
 brew services start clipper
 
 if command_exists heroku ; then
-    echo "⚙️  Configuring heroku and adding autocompletion..."
+    echo "⚙️  Configuring Heroku and adding autocompletion..."
     heroku update && heroku autocomplete
-    printf "$(heroku autocomplete:script bash)" >> ~/.bash_profile; source ~/.bash_profile
+    if grep -q "HEROKU_AC_BASH_SETUP_PATH" ~/.bash_profile; then 
+        echo "✅  Heroku autocomplete entry already found ...";
+    else
+        printf "$(heroku autocomplete:script bash)" >> ~/.bash_profile
+    fi
 fi
 
 # if command_exists mvim ; then

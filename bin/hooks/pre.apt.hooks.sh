@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # Adding Docker keys
 printf "Adding pre-requisite configs for ${YELLOW}Docker${NC}\n"
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -

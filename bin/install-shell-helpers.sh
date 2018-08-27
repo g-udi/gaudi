@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 printf "\n${RED}
 
  ▄  █ ▄███▄   █    █ ▄▄  ▄███▄   █▄▄▄▄   ▄▄▄▄▄
@@ -38,12 +40,12 @@ if [[ $REPLY =~ ^[yY]$ ]]; then
         if [[ $REPLY =~ ^[yY]$ ]]; then
 
             echo "The next step will prompt you for the url of a bash-it installation...\n"
-            echo "${YELLOW}[D,d]${NC} will install the original bash-it from: ${MAGENTA}https://github.com/Bash-it/bash-it"
-            echo "${YELLOW}[A,a]${NC} will install ahmadassaf's fork from: ${MAGENTA}https://github.com/ahmadassaf/bash-it"
-            echo "\n${YELLOW}If you want to point to any other location then just type the github url of that repo${NC}"
-            echo "\n${UNDERLINE_RED}Note"
-            echo "${WHITE}The original bash-it and other forks have a corrupt installation script as they assume you are running the installation directly from the bash-it repo root.${NC}"
-            echo "${RED}Keep an eye on the installation logs for any issues during the installation process${NC}"
+            echo -e "${YELLOW}[D,d]${NC} will install the original bash-it from: ${MAGENTA}https://github.com/Bash-it/bash-it"
+            echo -e "${YELLOW}[A,a]${NC} will install ahmadassaf's fork from: ${MAGENTA}https://github.com/ahmadassaf/bash-it"
+            echo -e "\n${YELLOW}If you want to point to any other location then just type the github url of that repo${NC}"
+            echo -e "\n${UNDERLINE_RED}Note"
+            echo -e "${WHITE}The original bash-it and other forks have a corrupt installation script as they assume you are running the installation directly from the bash-it repo root.${NC}"
+            echo -e "${RED}Keep an eye on the installation logs for any issues during the installation process${NC}"
             
             read -p "Please type url of the bash-it repo ? " BASH_IT_URL </dev/tty;
             echo ""

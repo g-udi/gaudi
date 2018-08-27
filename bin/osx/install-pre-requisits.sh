@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 printf "\nWe need to prepare your machine by install some required software\n\n"
 
 if ! type brew &> /dev/null; then

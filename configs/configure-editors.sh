@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # Configure text editors of the choice between SublimeText or Atom
 printf "We will install and configure some text editors for you if you wish ..."
 

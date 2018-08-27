@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 softwareLists=(
     "debian|apt-get::sudo apt-get -y --force-yes install"
     "*|brew::brew install"

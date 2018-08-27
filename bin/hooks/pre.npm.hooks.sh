@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 echo -e "Checking if npm is installed 🤔"
 if ! type npm &> /dev/null ; then
     echo -e "The required ${YELLOW}npm${NC} command was not found 😱 .."

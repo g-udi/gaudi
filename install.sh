@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # Getting the operating system of the machine
 getOperatingSystem () {
     case `uname` in

@@ -24,21 +24,3 @@ if command_exists heroku ; then
         printf "$(heroku autocomplete:script bash)" >> ~/.bash_profile
     fi
 fi
-
-# if command_exists mvim ; then
-#     export VISUAL="mvim --nofork"
-# fi
-
-# if command_exists mvim ; then
-#     export VISUAL="mvim --nofork"
-# fi
-
-# if command_exists mvim ; then
-#     export VISUAL="mvim --nofork"
-# fi
-
-#   Bash completion has been installed to:
-#   /usr/local/etc/bash_completion.d
-
-# zsh completions and functions have been installed to:
-#   /usr/local/share/zsh/site-functions

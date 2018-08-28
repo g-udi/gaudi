@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+
 
 source "$SOURCE_LOCATION/lib/colors.sh"
 
@@ -10,7 +10,7 @@ export USER=$(whoami)
 # Get the operating system version of the machine 
 # https://unix.stackexchange.com/questions/6345/how-can-i-get-distribution-name-and-version-number-in-a-simple-shell-script
 getOperatingSystem () {
-    echo "\n[INFO] Getting bash version .... \n"
+    echo -e "\n[INFO] Getting bash version .... \n"
     bash --version
     case `uname` in
     Linux )

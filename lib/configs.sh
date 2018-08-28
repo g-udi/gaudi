@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 
 source "$SOURCE_LOCATION/lib/colors.sh"
 

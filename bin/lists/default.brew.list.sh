@@ -3,7 +3,7 @@
 export brewList=(
 
   # Core Modules
-
+  
   "coreutils::GNU File, Shell, and Text utilities"
   "autoconf@2.13::Automatic configure script builder"
   "grep::GNU grep, egrep and fgrep"
@@ -20,10 +20,13 @@ export brewList=(
   "libxslt::C XSLT library for GNOME"
   "readline::Library for command-line editing"
   "libffi::Portable Foreign Function Interface library"
+  "libtool::"
+  "unixodbc::"
   "libyaml::A C library for parsing and emitting YAML https://github.com/yaml/libyaml"
   "gpg::GnuPG is a complete and free implementation of the OpenPGP standard https://www.gnupg.org/"
 
   # Development
+ 
   "asdf::Extendable version manager with support for Ruby, Node.js, Elixir, Erlang & more https://github.com/asdf-vm/asdf"
   "heroku::Command-line client for the cloud PaaS https://devcenter.heroku.com/articles/heroku-cli"
   "shellcheck::Static analysis and lint tool, for bash scripts https://www.shellcheck.net/"

@@ -27,11 +27,11 @@ for item in "${softwareLists[@]}"; do
         for LIST in $(find $SOURCE_LOCATION -type f -iname `echo "*${listType}.list.sh"`); do
             listName=`cat "$LIST" | grep "# @List: "`
             if [[ $LIST = *"default"* ]]; then
-                echo -e "\n🤖 Installing ${YELLOW}default ${listType}${NC} software list"
+                printf "\n🤖 Installing ${YELLOW}default ${listType}${NC} software list"
             else
                 _listName=`cat "$LIST" | grep "# @Name:"`
                 _listDescription=`cat "$LIST" | grep "# @Description:"`
-                echo -e "\n🤖 Installing${YELLOW}${_listName#*:} ${listType}${NC} software list:${MAGENTA}${_listDescription#*:}${NC}"
+                printf "\n🤖 Installing${YELLOW}${_listName#*:} ${listType}${NC} software list:${MAGENTA}${_listDescription#*:}${NC}"
             fi;
             
             read -p "Would you like to proceed ? [Y/N] " -n 1;

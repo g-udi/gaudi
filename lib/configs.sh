@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 source "$SOURCE_LOCATION/lib/colors.sh"
 
@@ -10,7 +10,7 @@ export USER=$(whoami)
 # Get the operating system version of the machine 
 # https://unix.stackexchange.com/questions/6345/how-can-i-get-distribution-name-and-version-number-in-a-simple-shell-script
 getOperatingSystem () {
-    echo -e "\n[INFO] Getting bash version .... \n"
+    printf "\n[INFO] Getting bash version .... \n"
     bash --version
     case `uname` in
     Linux )
@@ -48,13 +48,13 @@ installSoftwareList () {
         fi
         softwareDescription="${listItem##*::}"
         if [[ $isWithPrompt = "true" ]]; then
-            read -p "👾 $(echo -e "${MAGENTA}$software${NC}\n${YELLOW}Description:${NC} $softwareDescription") | Would you like to install this? [Y/N] " -n 1 </dev/tty
+            read -p "👾 $(printf "${MAGENTA}$software${NC}\n${YELLOW}Description:${NC} $softwareDescription") | Would you like to install this? [Y/N] " -n 1 </dev/tty
             echo ""
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 `echo ${installCommand} ${software}`
             fi;
         else
-            echo -e "\n👾 Installing ${MAGENTA}$software${NC}\n${YELLOW}Description:${NC} $softwareDescription"
+            printf "\n👾 Installing ${MAGENTA}$software${NC}\n${YELLOW}Description:${NC} $softwareDescription"
             `echo ${installCommand} ${software}`
         fi
     done

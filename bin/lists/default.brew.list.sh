@@ -20,8 +20,8 @@ export brewList=(
   "libxslt::C XSLT library for GNOME"
   "readline::Library for command-line editing"
   "libffi::Portable Foreign Function Interface library"
-  "libtool::"
-  "unixodbc::"
+  "libtool::GNU libtool is a generic library support script. Libtool hides the complexity of using shared libraries behind a consistent, portable interface "
+  "unixodbc::ODBC 3 connectivity for UNIX"
   "libyaml::A C library for parsing and emitting YAML https://github.com/yaml/libyaml"
   "gpg::GnuPG is a complete and free implementation of the OpenPGP standard https://www.gnupg.org/"
 

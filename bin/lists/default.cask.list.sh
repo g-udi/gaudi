@@ -54,7 +54,8 @@ export caskList=(
 ## Productivity
 	
   "station::Station unifies all your work tools in one neat & productive interface. ... One app to rule them all. Station is the first smart workstation for busy people https://getstation.com/"
-		
+	"bitbar::Put the output from any script or program in your Mac OS X Menu Bar https://getbitbar.com"
+
 		## Messaging and Communication
 
   	"skype::Free online calls, messaging, affordable international calling to mobiles or landlines and Skype for Business for effective collaboration https://www.skype.com/en/"

@@ -2,15 +2,13 @@
 
 # Getting the operating system of the machine
 getOperatingSystem () {
-    case `uname` in
+    case $(uname) in
     Linux )
-        LINUX=1
-        which yum && { export OS=centos; return; }
-        which zypper && { export OS=opensuse; return; }
-        which apt-get && { export OS=debian; return; }
+        command -v yum && { export OS=centos; return; }
+        command -v zypper && { export OS=opensuse; return; }
+        command -v apt-get && { export OS=debian; return; }
         ;;
     Darwin )
-        DARWIN=1
         export OS=osx
         ;;
     * );;
@@ -22,16 +20,23 @@ if [ ! -n "$GAUDI" ]; then
 fi
 
 if [ -d "$GAUDI" ]; then
-    printf "You already have gaudi installed..\n"
-    printf "Setting up a fresh installation of gaudi 🌈\n"
+    printf "You already have gaudi installed..\\n"
+    printf "Setting up a fresh installation of gaudi 🌈\\n"
     rm -rf $GAUDI
 fi
 
 # Run the installation pre-requisites based on each operating system defined in gaudi
-getOperatingSystem && sh -c "$(curl -fsSL https://raw.githubusercontent.com/ahmadassaf/gaudi/master/bin/${OS}/install-pre-requisits.sh)"
+getOperatingSystem && bash -c "$(curl -fsSL https://raw.githubusercontent.com/ahmadassaf/gaudi/master/bin/${OS}/install-pre-requisits.sh)"
+
+# Prevent the cloned repository from having insecure permissions. Failing to do
+# so causes compinit() calls to fail with "command not found: compdef" errors
+# for users with insecure umasks (e.g., "002", allowing group writability). Note
+# that this will be ignored under Cygwin by default, as Windows ACLs take
+# precedence over umasks except for filesystems mounted with option "noacl".
+umask g-w,o-w
 
 env git clone --depth=1 https://github.com/ahmadassaf/gaudi.git "$GAUDI" || {
-    printf "Error: Cloning of gaudi into this machine failed :(\n"
+    printf "Error: Cloning of gaudi into this machine failed :(\\n"
     exit 1
 }
 

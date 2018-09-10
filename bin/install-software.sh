@@ -40,7 +40,7 @@ for item in "${softwareLists[@]}"; do
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 . $LIST
                 referencedList=`echo "${listName#*:}" | xargs`
-                __list=${referencedList[*]}
+                __list=$referencedList[@]
                 read -p "Would you like to install all the recommended software [Type N to select what you want to install one by one]? [Y/N] " -n 1;
                 echo "";
                 if [[ $REPLY =~ ^[Yy]$ ]]; then

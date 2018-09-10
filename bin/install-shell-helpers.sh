@@ -70,9 +70,9 @@ if [[ $REPLY =~ ^[yY]$ ]]; then
             read -p "Please type url of the oh-my-zsh repo (e.g., robbyrussell/oh-my-zsh) ? Type [D] for the default oh-my-zsh: " OH_MY_ZSH_URL </dev/tty;
             echo ""
             if [[ $OH_MY_ZSH_URL =~ ^[dD]$ ]]; then
-                sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
+                bash -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
             else
-                sh -c "$(curl -fsSL https://raw.githubusercontent.com/$OH_MY_ZSH_URL/master/tools/install.sh)"
+                bash -c "$(curl -fsSL https://raw.githubusercontent.com/$OH_MY_ZSH_URL/master/tools/install.sh)"
             fi;
         fi;
     fi

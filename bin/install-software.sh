@@ -40,7 +40,7 @@ for item in "${softwareLists[@]}"; do
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 . $LIST
                 referencedList=`echo "${listName#*:}" | xargs`
-                __list=$referencedList[@]
+                __list=${referencedList[*]}
                 read -p "Would you like to install all the recommended software [Type N to select what you want to install one by one]? [Y/N] " -n 1;
                 echo "";
                 if [[ $REPLY =~ ^[Yy]$ ]]; then
@@ -52,7 +52,7 @@ for item in "${softwareLists[@]}"; do
         done;
 
         # We need now to check if we need to run any post hooks
-        find $SOURCE_LOCATION -type f -iname `echo "post.${listType}*.hooks.sh"` | while read PRE_HOOK; do
+        find "$SOURCE_LOCATION -type f -iname `echo "post.${listType}*.hooks.sh"`" | while read PRE_HOOK; do
             . $PRE_HOOK
         done
     fi

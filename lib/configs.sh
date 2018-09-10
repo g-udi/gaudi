@@ -2,10 +2,11 @@
 
 source "$SOURCE_LOCATION/lib/colors.sh"
 
-export EMAIL_REGEX="^[a-z0-9!#\$%&'*+/=?^_\`{|}~-]+(\.[a-z0-9!#$%&'*+/=?^_\`{|}~-]+)*@([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z0-9]([a-z0-9-]*[a-z0-9])?\$"
+export EMAIL_REGEX="^[a-z0-9!#\$%&'*+/=?^_\`{|}~-]+(\.[a-z0-9!#$%&'*+/=?^_\`{|}~-]+)*@([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9]([a-z0-9-]*[a-z0-9])?\$"
 
 # Get the logged in username
-export USER=$(whoami)
+USER=$(whoami)
+export USER=$USER
 
 # Get the operating system version of the machine 
 # https://unix.stackexchange.com/questions/6345/how-can-i-get-distribution-name-and-version-number-in-a-simple-shell-script
@@ -14,13 +15,11 @@ getOperatingSystem () {
     bash --version
     case `uname` in
     Linux )
-        LINUX=1
-        which yum && { export OS=centos; return; }
-        which zypper && { export OS=opensuse; return; }
-        which apt-get && { export OS=debian; return; }
+        command -v yum && { export OS=centos; return; }
+        command -v zypper && { export OS=opensuse; return; }
+        command -v apt-get && { export OS=debian; return; }
         ;;
     Darwin )
-        DARWIN=1
         export OS=osx
         ;;
     * );;

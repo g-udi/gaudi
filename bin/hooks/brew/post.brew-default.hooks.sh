@@ -21,6 +21,6 @@ if command_exists heroku ; then
     if grep -q "HEROKU_AC_BASH_SETUP_PATH" ~/.bash_profile; then 
         echo "✅  Heroku autocomplete entry already found ...";
     else
-        printf "$(heroku autocomplete:script bash)" >> ~/.bash_profile
+        echo "$(heroku autocomplete:script bash)" >> ~/.bash_profile
     fi
 fi

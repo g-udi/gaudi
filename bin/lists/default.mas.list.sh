@@ -7,10 +7,8 @@ export masList=(
     "968487158::GAget::GAget is a beautiful application for checking Google Analytics data https://gagetapp.com/"
     "915542151::Monity::Monity is an advanced System Monitoring Widget for OS X. Monity takes it's place in OS X new Today View and oversees your components statistics just for you https://www.monityapp.com/"
     "441258766::Magnet::Magnet keeps your workspace organized. ... Having multiple windows aligned neatly side by side eliminates app switching and greatly enhances multitasking crowdcafe"
-    "411246225::Caffeine::Caffeine is a tiny program that puts an icon in the right side of your menu bar. Click it to prevent your Mac from automatically going to sleep or dimming the screen http://lightheadsw.com/caffeine/"
+    "937984704::Amphetamine::Amphetamine is a little app that lives in your menu bar. With Amphetamine, you can effortlessly override your energy saver settings and keep your Mac awake https://itunes.apple.com/gb/app/amphetamine/id937984704"
     "975937182::Fantastical 2::Fantastical is the the powerful yet friendly! calendar and reminders app https://flexibits.com/"
-    "406119724::DateLine::DateLine is a small, simple app which displays a linear calendar on your desktop in a transparent window http://www.machinecodex.com/dateline/"
-    "1302310792::Memory Clean 3::MemoryClean is the ultimate app for optimizing your Mac's memory and is best used after you have finished using a memory (RAM) intensive app https://fiplab.com/apps/memory-clean-3-for-mac"
     "1354318707::Core Tunnel::It is the missing tunnel manager, compatible with OpenSSH, automatic and intuitive"
 
     ## Security

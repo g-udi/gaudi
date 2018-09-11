@@ -18,7 +18,7 @@ brew services start clipper
 if command_exists heroku ; then
     echo "⚙️  Configuring Heroku and adding autocompletion..."
     heroku update
-    heroku login && heroku autocomplete
+    heroku login </dev/tty && heroku autocomplete </dev/tty
     if grep -q "HEROKU_AC_BASH_SETUP_PATH" ~/.bash_profile; then 
         echo "✅  Heroku autocomplete entry already found ...";
     else

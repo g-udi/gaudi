@@ -2,7 +2,7 @@
 
 softwareLists=(
     "debian|apt-get::sudo apt-get -y --force-yes install"
-    "*|brew::brew install"
+    "*|brew::brew_install_or_upgrade"
     "osx|mas::mas install"
     "osx|cask::brew cask install"
     "*|npm::npm install -g"

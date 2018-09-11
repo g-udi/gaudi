@@ -63,6 +63,15 @@ command_exists () {
     type "$1" &> /dev/null ;
 }
 
+brew_install_or_upgrade() {
+    if brew ls --versions "$1" >/dev/null; then
+        HOMEBREW_NO_AUTO_UPDATE=1 brew upgrade "$1"
+    else
+        HOMEBREW_NO_AUTO_UPDATE=1 brew install "$1"
+    fi
+}
+
 export -f command_exists
 export -f installSoftwareList
 export -f getOperatingSystem
+export -f brew_install_or_upgrade

@@ -5,7 +5,7 @@ printf "\n%s\n\n" "🔬 All brew formulas installed .. setting up few things"
 # Check if we have asdf plugins and languages to set
 for PLUGINS_LIST in $(find . -type f -iname asdf-plugins.list.sh); do
     printf "Installing ${YELLOW}programming languages${NC} ${MAGENTA}plugins${NC} using asdf 🔮\n"
-    . "${SOURCE_LOCATION}/$PLUGINS_LIST"
+    . $PLUGINS_LIST
     for plugin in ${asdfPluginsList[@]}; do
         printf "Adding asdf ${MAGENTA}plugin${NC} ${RED}$plugin${NC}\n"
         asdf plugin-add $plugin

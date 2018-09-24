@@ -20,6 +20,7 @@ export brewList=(
   "libxslt::C XSLT library for GNOME"
   "readline::Library for command-line editing"
   "libffi::Portable Foreign Function Interface library"
+  "bash-preexec::⚡ preexec and precmd functions for Bash just like Zsh https://github.com/rcaloras/bash-preexec"
   "libtool::GNU libtool is a generic library support script. Libtool hides the complexity of using shared libraries behind a consistent, portable interface "
   "unixodbc::ODBC 3 connectivity for UNIX"
   "libyaml::A C library for parsing and emitting YAML https://github.com/yaml/libyaml"
@@ -32,6 +33,7 @@ export brewList=(
   "shellcheck::Static analysis and lint tool, for bash scripts https://www.shellcheck.net/"
   "yarn::JavaScript package manager https://yarnpkg.com/en/"
   "ctags::Ctags generates an index (or tag) file of language objects found in source files that allows these items to be quickly and easily located by a text editor or other utility http://ctags.sourceforge.net/"
+  "kubectx::Fast way to switch between clusters and namespaces in kubectl https://github.com/ahmetb/kubectx"
 
     ### Git speific addons
 
@@ -84,6 +86,7 @@ export brewList=(
   "qrencode::QR Code generation https://fukuchi.org/works/qrencode/index.html.en"
   "watchman::Watchman exists to watch files and record when they change https://facebook.github.io/watchman/"
   "archey::An archey script clone for OS X http://obihann.github.io/archey-osx"
+  "fzf::A command-line fuzzy finder https://github.com/junegunn/fzf"
 
       ## Network
       "nmap::Port scanning utility for large networks https://nmap.org/"

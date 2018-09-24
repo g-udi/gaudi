@@ -37,6 +37,7 @@ export caskList=(
 	"gitkraken::THE legendary Git GUI client https://www.gitkraken.com/"
 	"openrefine::OpenRefine (formerly Google Refine) is a powerful tool for working with messy data: cleaning it; transforming it from one format into another http://openrefine.org/"
 	"ngrok::ngrok provides a real-time web UI where you can introspect all HTTP traffic running over your tunnels https://ngrok.com/"
+	"minikube::Minikube is a tool that makes it easy to run Kubernetes locally https://github.com/kubernetes/minikube"
   
 		## IDE and editors
 

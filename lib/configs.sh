@@ -10,7 +10,7 @@ export USER=$USER
 
 # Get the operating system version of the machine 
 # https://unix.stackexchange.com/questions/6345/how-can-i-get-distribution-name-and-version-number-in-a-simple-shell-script
-getOperatingSystem () {
+function getOperatingSystem {
     printf "\n[INFO] Getting bash version ....\\n"
     bash --version
     case `uname` in
@@ -31,7 +31,7 @@ getOperatingSystem () {
 #   <Function> command: The install command to execute on an install item
 #   <Boolean> withPrompt: Indicate if we need to prompt the user to accept the installation of each item
 #   <Array> softwareList: The software list reference
-installSoftwareList () {
+function installSoftwareList {
     echo ""
     installCommand=$1 && shift
     isWithPrompt=$1 && shift
@@ -59,16 +59,22 @@ installSoftwareList () {
     done
 }
 
-command_exists () {
+function command_exists {
     type "$1" &> /dev/null ;
 }
 
-brew_install_or_upgrade() {
-    if brew ls --versions "$1" >/dev/null; then
-        HOMEBREW_NO_AUTO_UPDATE=1 brew upgrade "$1"
-    else
-        HOMEBREW_NO_AUTO_UPDATE=1 brew install "$1"
+
+function brew_install_or_upgrade {
+  if brew ls --versions "$1" >/dev/null; then
+    if (brew outdated | grep "$1" > /dev/null); then 
+      echo "Upgrading already installed package $1 ..."
+      brew upgrade "$1"
+    else 
+      echo "Latest $1 is already installed"
     fi
+  else
+    brew install "$1"
+  fi
 }
 
 export -f command_exists

@@ -18,21 +18,23 @@ ${WHITE}Greetings $USER .....${NC}\n
 The Following script will set up your machine based on the various configurations specific in the config files\n
 Before moving forward, we need your email address for various steps in the configuration process ...\n"
 
-# # Prompt and save the email address for the user
-# printf "Please enter your ${RED}email address${NC} (it will be used to configure SSH and any other needed configs):" && read EMAIL
-# # Export the email to make it accessible through the installation and configuration scripts
-# if [[ $EMAIL =~ $EMAIL_REGEX ]] ; then
-#     export EMAIL
-# else
-#     printf "\n\n${RED}You did not enter a valid email .. cannot move forward :(${NC}\n\n"
-#     exit
-# fi
+# Prompt and save the email address for the user
+printf "Please enter your ${RED}email address${NC} (it will be used to configure SSH and any other needed configs):" && read EMAIL
+# Export the email to make it accessible through the installation and configuration scripts
+if [[ $EMAIL =~ $EMAIL_REGEX ]] ; then
+    export EMAIL
+else
+    printf "\n\n${RED}You did not enter a valid email .. cannot move forward :(${NC}\n\n"
+    exit
+fi
+
 # Configure shell helpers
 . "${SOURCE_LOCATION}/bin/install-shell-helpers.sh"
 # # Run the SSH configurations
 # . "${SOURCE_LOCATION}/configs/lib/configure-ssh.sh"
 
 . "${SOURCE_LOCATION}/bin/install-software.sh"
+
 # Prompt user to select his type of shell
 printf "Please select what ${RED}shell${NC} you need to install ${MAGENTA}(or have already installed)${NC} between ${YELLOW}bash${NC} and ${YELLOW}zsh${NC}: " && read SHELL_TYPE
 export SHELL_TYPE
@@ -42,7 +44,6 @@ export SHELL_TYPE
 # Configure shell helpers
 . "${SOURCE_LOCATION}/bin/install-shell-helpers.sh"
 # Install recommended software kit
-# Configure Bosco and clone dev repos
 . "${SOURCE_LOCATION}/configs/repositories-setup.sh"
 # Configure the custom beamery lib
 . "${SOURCE_LOCATION}/configs/configure-beamery-plugins.sh"

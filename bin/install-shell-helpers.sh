@@ -32,11 +32,11 @@ you'll take advantage of the hundreds of powerful plugins and beautiful themes. 
 read -p "Do you need to install any of the shell helpers [recommended] ? [Y/N] " -n 1 </dev/tty;
 echo ""
 if [[ $REPLY =~ ^[yY]$ ]]; then
-    read -p "Would you like to install bash-it ? [Y/N] " -n 1 </dev/tty;
-    echo ""
     if [[ -d ${HOME}/.bash_it ]]; then
         printf "${MAGENTA}bash-it is already installed .. skipping${NC}\n"
     else
+        read -p "Would you like to install bash-it ? [Y/N] " -n 1 </dev/tty;
+        echo ""
         if [[ $REPLY =~ ^[yY]$ ]]; then
 
             printf "The next step will prompt you for the url of a bash-it installation...\n\n"
@@ -60,13 +60,12 @@ if [[ $REPLY =~ ^[yY]$ ]]; then
         fi;
     fi;
 
-    read -p "Would you like to install oh-my-zsh ? [Y/N] " -n 1 </dev/tty;
-    echo ""
-
-    if [[ $REPLY =~ ^[yY]$ ]]; then
-        if [[ -d ${HOME}/.oh-my-zsh ]]; then
-            printf "${MAGENTA}oh-my-zh is already installed .. skipping${NC}\n"
-        else
+    if [[ ${HOME}/.oh-my-zsh ]]; then
+        printf "${MAGENTA}oh-my-zh is already installed .. skipping${NC}\n"
+    else
+        read -p "Would you like to install oh-my-zsh ? [Y/N] " -n 1 </dev/tty;
+        echo ""
+        if [[ $REPLY =~ ^[yY]$ ]]; then
             read -p "Please type url of the oh-my-zsh repo (e.g., robbyrussell/oh-my-zsh) ? Type [D] for the default oh-my-zsh: " OH_MY_ZSH_URL </dev/tty;
             echo ""
             if [[ $OH_MY_ZSH_URL =~ ^[dD]$ ]]; then

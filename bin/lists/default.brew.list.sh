@@ -4,7 +4,7 @@ export brewList=(
 
   # Core Modules
   
-  "coreutils::GNU File, Shell, and Text utilities"
+  "coreutils::with_default_names::GNU File, Shell, and Text utilities"
   "autoconf@2.13::Automatic configure script builder"
   "grep::GNU grep, egrep and fgrep"
   "ack::Search tool like grep, but optimized for programmers https://beyondgrep.com/"
@@ -87,10 +87,14 @@ export brewList=(
   "watchman::Watchman exists to watch files and record when they change https://facebook.github.io/watchman/"
   "archey::An archey script clone for OS X http://obihann.github.io/archey-osx"
   "fzf::A command-line fuzzy finder https://github.com/junegunn/fzf"
+  "peco::Simplistic interactive filtering tool https://github.com/peco/peco"
+  "todoist::Todoist CLI Client https://github.com/sachaos/todoist"
+  "calc::Launch calc and you can start typing equations https://github.com/lcn2/calc"
 
       ## Network
       "nmap::Port scanning utility for large networks https://nmap.org/"
       "traefik::A reverse proxy / load balancer that's easy, dynamic, automatic, fast, full-featured, open source, production proven, provides metrics, and integrates with every major cluster technologies https://traefik.io/"
-
+      "irssi::IRC built-in. Multi-protocol friendly for module authors https://irssi.org/"
+      "httpie:HTTPie—aitch-tee-tee-pie—is a command line HTTP client with an intuitive UI, JSON support, syntax highlighting, wget-like downloads, plugins, and more https://httpie.org/"
   
 )

@@ -59,11 +59,16 @@ function installSoftwareList {
     done
 }
 
+# Checks if a command already exists
+# e.g., command_exists brew
+#   <Function> command: The command we want to check if it exists
 function command_exists {
     type "$1" &> /dev/null ;
 }
 
-
+# Install or update a brew recipe
+# e.g., brew_install_or_upgrade recipe
+#   <String> Recipe: The recipe name we wish to install or upgrade
 function brew_install_or_upgrade {
   if brew ls --versions "$1" >/dev/null; then
     if (brew outdated | grep "$1" > /dev/null); then 
@@ -74,6 +79,17 @@ function brew_install_or_upgrade {
     fi
   else
     brew install "$1"
+  fi
+}
+
+# Install or update a ruby gem
+# e.g., gem_install_or_update gem
+#   <String> Gem: The gem name we wish to install or upgrade
+gem_install_or_update() {
+  if gem list "$1" --installed > /dev/null; then
+    gem update "$@"
+  else
+    gem install "$@"
   fi
 }
 

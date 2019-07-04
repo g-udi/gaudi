@@ -8,7 +8,7 @@ softwareLists=(
     "*|npm::npm install -g"
     "*|pip::pip3 install --upgrade --user --ignore-installed six"
     "*|go::go get"
-    "*|gem::gem install"
+    "*|gem::gem_install_or_update install"
 )
 
 for item in "${softwareLists[@]}"; do

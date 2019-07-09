@@ -18,20 +18,14 @@ ${WHITE}Greetings $USER .....${NC}\n
 The Following script will set up your machine based on the various configurations specific in the config files\n
 Before moving forward, we need your email address for various steps in the configuration process ...\n"
 
-# Prompt and save the email address for the user
-printf "Please enter your ${RED}email address${NC} (it will be used to configure SSH and any other needed configs):" && read EMAIL
-# Export the email to make it accessible through the installation and configuration scripts
-if [[ $EMAIL =~ $EMAIL_REGEX ]] ; then
-    export EMAIL
-else
-    printf "\n\n${RED}You did not enter a valid email .. cannot move forward :(${NC}\n\n"
-    exit
-fi
+# Install prerequisites
+. "${SOURCE_LOCATION}/bin/${OS}/install-pre-requisits.sh"
+
+# Run the SSH configurations
+. "${SOURCE_LOCATION}/configs/configure-gaudi.sh"
 
 # Configure shell helpers
 . "${SOURCE_LOCATION}/bin/install-shell-helpers.sh"
-# # Run the SSH configurations
-# . "${SOURCE_LOCATION}/configs/lib/configure-ssh.sh"
 
 . "${SOURCE_LOCATION}/bin/install-software.sh"
 
@@ -39,8 +33,6 @@ fi
 printf "Please select what ${RED}shell${NC} you need to install ${MAGENTA}(or have already installed)${NC} between ${YELLOW}bash${NC} and ${YELLOW}zsh${NC}: " && read SHELL_TYPE
 export SHELL_TYPE
 
-# Install prerequisites
-. "${SOURCE_LOCATION}/bin/${OS}/install-pre-requisits.sh"
 # Configure shell helpers
 . "${SOURCE_LOCATION}/bin/install-shell-helpers.sh"
 # Install recommended software kit

@@ -11,19 +11,6 @@ softwareLists=(
     "*|gem::gem_install_or_update install"
 )
 
-printf "\nThe next step will prompt you for the url of gaudi templates (lists, hooks)...\n\n"
-printf "${YELLOW}[D,d]${NC} will install the original bash-it from: ${MAGENTA}https://github.com/ahmadassaf/gaudi-templates \n"
-printf "\n${YELLOW}If you want to point to any other location then just type the github url of that repo${NC}\n\n"
-
-read -p ">> " GAUDI_TEMPLATE_URL </dev/tty;
-echo ""
-export GAUDI_TEMPLATES_LOCATION="${HOME}/.gaudi/templates/gaudi"
-if [[ $GAUDI_TEMPLATE_URL =~ ^[dD]$ ]]; then
-    GAUDI_TEMPLATE_URL="https://github.com/ahmadassaf/gaudi-templates"
-fi;
-
-git clone $GAUDI_TEMPLATE_URL $GAUDI_TEMPLATES_LOCATION
-
 for item in "${softwareLists[@]}"; do
     
     operatingSystem="${item%%|*}"

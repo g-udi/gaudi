@@ -12,7 +12,8 @@ if [[ $REPLY =~ ^[yY]$ ]]; then
                   read -p "Would you like to install with brew instead?"
                   if [[ $REPLY =~ ^[yY]$ ]]; then
                         brew install zsh
-                        sudo dscl . -create /Users/$USER UserShell /usr/local/bin/zsh
+                        zsh_path=$(which zsh)
+                        sudo dscl . -create /Users/$USER UserShell zsh_path
                   fi
             fi
       fi

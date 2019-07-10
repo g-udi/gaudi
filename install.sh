@@ -12,8 +12,8 @@ getOperatingSystem () {
         export OS=osx
         ;;
     * );;
-    esac    
-}  
+    esac
+}
 
 if [ ! -n "$GAUDI" ]; then
     GAUDI=~/.gaudi
@@ -26,7 +26,7 @@ if [ -d "$GAUDI" ]; then
 fi
 
 # Run the installation pre-requisites based on each operating system defined in gaudi
-getOperatingSystem && bash -c "$(curl -fsSL https://raw.githubusercontent.com/ahmadassaf/gaudi/master/bin/${OS}/install-pre-requisits.sh)"
+getOperatingSystem && bash -c "$(curl -kfsSL https://raw.githubusercontent.com/ahmadassaf/gaudi/master/bin/${OS}/install-pre-requisits.sh)"
 
 # Prevent the cloned repository from having insecure permissions. Failing to do
 # so causes compinit() calls to fail with "command not found: compdef" errors
@@ -41,6 +41,3 @@ env git clone --depth=1 https://github.com/ahmadassaf/gaudi.git "$GAUDI" || {
 }
 
 . "$GAUDI/setup.sh"
-
-
-

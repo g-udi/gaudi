@@ -7,6 +7,11 @@ else
     export SOURCE_LOCATION=~/.gaudi
 fi
 
+# Configure shell (ZSH)
+if [ -n "$BASH" ]; then
+    . "${SOURCE_LOCATION}/bin/install-zshell.sh"
+fi;
+
 # Load the external configurations
 source "$SOURCE_LOCATION/lib/configs.sh"
 
@@ -27,6 +32,7 @@ Before moving forward, we need your email address for various steps in the confi
 # Configure shell helpers
 . "${SOURCE_LOCATION}/bin/install-shell-helpers.sh"
 
+# Install software from lists
 . "${SOURCE_LOCATION}/bin/install-software.sh"
 
 # Prompt user to select his type of shell
@@ -35,8 +41,6 @@ export SHELL_TYPE
 
 # Configure shell helpers
 . "${SOURCE_LOCATION}/bin/install-shell-helpers.sh"
-# Install recommended software kit
-. "${SOURCE_LOCATION}/configs/repositories-setup.sh"
 # Configure the custom beamery lib
 . "${SOURCE_LOCATION}/configs/configure-beamery-plugins.sh"
 # Run the text editors configurations

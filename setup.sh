@@ -18,22 +18,22 @@ ${WHITE}Greetings $USER .....${NC}\n
 The Following script will set up your machine based on the various configurations specific in the config files\n
 Before moving forward, we need your email address for various steps in the configuration process ...\n"
 
-# # Install prerequisites
-. "${SOURCE_LOCATION}/bin/${OS}/install-pre-requisits.sh"
+# # # Install prerequisites
+# . "${SOURCE_LOCATION}/bin/${OS}/install-pre-requisits.sh"
 
-# # Run the SSH configurations
-. "${SOURCE_LOCATION}/configs/configure-gaudi.sh"
+# # # Run the SSH configurations
+# . "${SOURCE_LOCATION}/configs/configure-gaudi.sh"
 
-# # Configure shell helpers
-. "${SOURCE_LOCATION}/bin/install-shell-helpers.sh"
+# # # Configure shell helpers
+# . "${SOURCE_LOCATION}/bin/install-shell-helpers.sh"
 
-# # Install software from lists
-. "${SOURCE_LOCATION}/bin/install-software.sh"
+# # # Install software from lists
+# . "${SOURCE_LOCATION}/bin/install-software.sh"
 
-# # Install dotfiles
+# # # Install dotfiles
 . "${SOURCE_LOCATION}/bin/install-dotfiles.sh"
 
 # Install extras
-. "${SOURCE_LOCATION}/bin/install-extras.sh"
+# . "${SOURCE_LOCATION}/bin/install-extras.sh"
 
 printf "Good Bye"

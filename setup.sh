@@ -7,11 +7,6 @@ else
     export SOURCE_LOCATION=~/.gaudi
 fi
 
-# Configure shell (ZSH)
-if [ -n "$BASH" ]; then
-    . "${SOURCE_LOCATION}/bin/install-zshell.sh"
-fi;
-
 # Load the external configurations
 source "$SOURCE_LOCATION/lib/configs.sh"
 

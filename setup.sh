@@ -27,6 +27,7 @@ Before moving forward, we need your email address for various steps in the confi
 # Configure shell helpers
 . "${SOURCE_LOCATION}/bin/install-shell-helpers.sh"
 
+# Install Software
 . "${SOURCE_LOCATION}/bin/install-software.sh"
 
 # Prompt user to select his type of shell

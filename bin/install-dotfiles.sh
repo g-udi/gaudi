@@ -9,7 +9,7 @@ if [[ $REPLY =~ ^[yY]$ ]]; then
     else
         printf "stow is installed ✓\n\n\n"
     fi
-
+fi
 
 if [ -d "$SOURCE_LOCATION/gaudi-files/dotfiles" ]; then
     for d in $SOURCE_LOCATION/gaudi-files/dotfiles/* ; do

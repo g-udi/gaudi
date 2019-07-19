@@ -12,7 +12,7 @@ softwareLists=(
 )
 
 for item in "${softwareLists[@]}"; do
-    
+
     operatingSystem="${item%%|*}"
     list="${item%%::*}"
     listType="${list#*|}"
@@ -23,7 +23,7 @@ for item in "${softwareLists[@]}"; do
         find $SOURCE_LOCATION -type f -iname `echo "pre.${listType}*.hooks.sh"` | while read PRE_HOOK; do
             . $PRE_HOOK
         done
-            
+
         for LIST in $(find $SOURCE_LOCATION -type f -iname `echo "*${listType}.list.sh"`); do
             listName=`cat "$LIST" | grep "# @List: "`
             if [[ $LIST = *"default"* ]]; then
@@ -33,10 +33,10 @@ for item in "${softwareLists[@]}"; do
                 _listDescription=`cat "$LIST" | grep "# @Description:"`
                 printf "\n🤖 Installing${YELLOW}${_listName#*:} ${listType}${NC} software list:${MAGENTA}${_listDescription#*:}${NC}\n"
             fi;
-            
+
             read -p "Would you like to proceed ? [Y/N] " -n 1;
             echo ""
-            
+
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 . $LIST
                 referencedList=`echo "${listName#*:}" | xargs`

@@ -3,8 +3,8 @@
 read -p  "Do you have any extra scripts in the 'extras' folder?  " -n 1
 
 if [[ $REPLY =~ ^[yY]$ ]]; then
-    if [ -d "$SOURCE_LOCATION/gaudi-files/extras" ]; then
-        for shfile in $SOURCE_LOCATION/gaudi-files/extras/*.sh
+    if [ -d "$SOURCE_LOCATION/templates/extras" ]; then
+        for shfile in $SOURCE_LOCATION/templates/extras/*.sh
         do
             chmod +x $shfile
             $shfile

@@ -46,7 +46,7 @@ if [[ $REPLY =~ ^[yY]$ ]]; then
             printf "\n${UNDERLINE_RED}Note${NC}"
             printf "\n${WHITE}The original bash-it and other forks have a corrupt installation script as they assume you are running the installation directly from the bash-it repo root.${NC}"
             printf "\n${RED}Keep an eye on the installation logs for any issues during the installation process${NC} \n"
-            
+
             read -p "Please type url of the bash-it repo ? " BASH_IT_URL </dev/tty;
             echo ""
             export BASH_IT="${HOME}/.bash_it"
@@ -60,7 +60,7 @@ if [[ $REPLY =~ ^[yY]$ ]]; then
         fi;
     fi;
 
-    if [[ ${HOME}/.oh-my-zsh ]]; then
+    if [[ -d ${HOME}/.oh-my-zsh ]]; then
         printf "${MAGENTA}oh-my-zh is already installed .. skipping${NC}\n"
     else
         read -p "Would you like to install oh-my-zsh ? [Y/N] " -n 1 </dev/tty;
@@ -76,4 +76,3 @@ if [[ $REPLY =~ ^[yY]$ ]]; then
         fi;
     fi
 fi;
-

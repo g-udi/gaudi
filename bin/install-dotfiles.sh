@@ -11,12 +11,12 @@ if [[ $REPLY =~ ^[yY]$ ]]; then
     fi
 fi
 
-if [ -d "$SOURCE_LOCATION/gaudi-files/dotfiles" ]; then
-    for d in $SOURCE_LOCATION/gaudi-files/dotfiles/* ; do
+if [ -d "$SOURCE_LOCATION/templates/dotfiles" ]; then
+    for d in $SOURCE_LOCATION/templates/dotfiles/* ; do
         if [ -d "$d" ]; then
             file=`basename $d`
             echo "$file"
-            stow $file -d $SOURCE_LOCATION/gaudi-files/dotfiles/ -t $HOME
+            stow $file -d $SOURCE_LOCATION/templates/dotfiles/ -t $HOME
         fi
     done
 fi

@@ -52,8 +52,8 @@ for item in "${softwareLists[@]}"; do
         done;
 
         # We need now to check if we need to run any post hooks
-        find $SOURCE_LOCATION -type f -iname `echo "post.${listType}*.hooks.sh"` | while read PRE_HOOK; do
-            . $PRE_HOOK
+        find $SOURCE_LOCATION -type f -iname `echo "post.${listType}*.hooks.sh"` | while read POST_HOOK; do
+            . $POST_HOOK
         done
     fi
 

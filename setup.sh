@@ -15,8 +15,7 @@ getOperatingSystem
 
 printf "
 ${WHITE}Greetings $USER .....${NC}\n
-The Following script will set up your machine based on the various configurations specific in the config files\n
-Before moving forward, we need your email address for various steps in the configuration process ...\n"
+The Following script will set up your machine based on the various configurations specific in the config files\n"
 
 # Install prerequisites
 . "${SOURCE_LOCATION}/bin/${OS}/install-pre-requisits.sh"

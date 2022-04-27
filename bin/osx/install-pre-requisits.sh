@@ -7,14 +7,14 @@ if ! type brew &> /dev/null; then
     # Install Homebrew .. a must !
     /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 else
-    printf "brew is installed ✓ ... "
+    printf "brew is installed ✓"
 fi
 
 if ! type mas &> /dev/null; then
     printf "Installing mas is highly recommended .. sorry it is not up to you to decide ;)\n"
     brew install mas
 else
-    printf "mas is installed ✓ ... "
+    printf "mas is installed ✓"
 fi
 
 if ! type git &> /dev/null; then

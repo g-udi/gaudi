@@ -26,7 +26,7 @@ if [ -d "$GAUDI" ]; then
 fi
 
 # Run the installation pre-requisites based on each operating system defined in gaudi
-getOperatingSystem && bash -c "$(curl -kfsSL https://raw.githubusercontent.com/ahmadassaf/gaudi/master/bin/${OS}/install-pre-requisits.sh)"
+getOperatingSystem && bash -c "$(curl -kfsSL https://raw.githubusercontent.com/g-udi/gaudi/master/bin/${OS}/install-pre-requisits.sh)"
 
 # Prevent the cloned repository from having insecure permissions. Failing to do
 # so causes compinit() calls to fail with "command not found: compdef" errors
@@ -35,7 +35,7 @@ getOperatingSystem && bash -c "$(curl -kfsSL https://raw.githubusercontent.com/a
 # precedence over umasks except for filesystems mounted with option "noacl".
 umask g-w,o-w
 
-env git clone --depth=1 https://github.com/ahmadassaf/gaudi.git "$GAUDI" || {
+env git clone --depth=1 https://github.com/g-udi/gaudi.git "$GAUDI" || {
     printf "Error: Cloning of gaudi into this machine failed :(\\n"
     exit 1
 }

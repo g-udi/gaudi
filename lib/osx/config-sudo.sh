@@ -18,7 +18,7 @@ then
     printf "\n${BLUE}%s${NC}\n" "[INFO] TouchID enabled sudo settings have been already added"
 else
     printf "Would you like to configure Touch ID with sudo? [Yy/Nn]";
-    read -r -n 1
+    read -r REPLY
     echo "";
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         # tell user what we are doing

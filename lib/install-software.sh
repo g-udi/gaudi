@@ -38,7 +38,7 @@ for item in "${softwareLists[@]}"; do
             fi;
 
             printf "Would you like to proceed ? [Y/N] ";
-            read -r -n 1
+            read -r REPLY
             echo ""
 
             if [[ $REPLY =~ ^[Yy]$ ]]; then
@@ -46,7 +46,7 @@ for item in "${softwareLists[@]}"; do
                 referencedList=$(echo "${listName#*:}" | xargs)
                 __list=$referencedList[@]
                 printf "Would you like to install all the recommended software [Type N to select what you want to install one by one]? [Y/N] ";
-                read -r -n 1
+                read -r REPLY
                 echo "";
                 if [[ $REPLY =~ ^[Yy]$ ]]; then
                     installSoftwareList "$listCommand" "false" "${!__list}"

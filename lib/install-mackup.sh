@@ -18,7 +18,7 @@ ${YELLOW}Mackup makes setting up the environment easy and simple, saving time fo
 
 if [[ -d "$GAUDI/templates/mackup" && -f "$HOME"/.mackup.cfg ]]; then
     printf "We noticed you have mackup folder available. Would you like to run mackup backup?  "
-    read -r -n 1
+    read -r REPLY
     if [[ $REPLY =~ ^[yY]$ ]]; then
         if ! command_exists stow; then
             printf "\n\n%s\n" "We noticed that mackup is not installed on your machine .. Installing now ..."

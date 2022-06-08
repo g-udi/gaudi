@@ -6,7 +6,7 @@ declare GAUDI_DEFAULT_TEMPLATES GAUDI_TEMPLATES_LOCATION
 GAUDI_DEFAULT_TEMPLATES="git@github.com:g-udi/gaudi-templates"
 GAUDI_TEMPLATES_LOCATION="${HOME}/.gaudi/templates/"
 
-echo -e "The next step will prompt you for the url of gaudi templates (lists, hooks, templates, etc.)...
+echo "The next step will prompt you for the url of gaudi templates (lists, hooks, templates, etc.)...
 
 ${YELLOW}[D,d]${NC} will install g-udi's default templates from: ${MAGENTA} $GAUDI_DEFAULT_TEMPLATES
 

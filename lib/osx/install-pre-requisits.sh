@@ -15,7 +15,7 @@ fi
 
 if ! type mas &> /dev/null; then
     printf "%s\n" "Installing mas is highly recommended .. sorry it is not up to you to decide ;)"
-    brew install mas
+    /opt/homebrew/bin/brew install mas
 else
     printf "${RED}%s$GREEN %s ${NC}" "mas is installed" "✓"
 fi

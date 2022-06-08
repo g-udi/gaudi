@@ -41,20 +41,20 @@ The Following script will set up your machine based on the various configuration
 # Get the operating system and have it in the global exportable variable
 getOperatingSystem
 
-# # Install prerequisites
-# source "${SOURCE_LOCATION}/lib/${OS}/install-pre-requisits.sh"
+# Install prerequisites
+source "${SOURCE_LOCATION}/lib/${OS}/install-pre-requisits.sh"
 
-# # Run the ssh configurations
-# source "${SOURCE_LOCATION}/configs/configure-ssh.sh"
+# Run the ssh configurations
+source "${SOURCE_LOCATION}/configs/configure-ssh.sh"
 
-# # Run the gaudi configurations
-# source "${SOURCE_LOCATION}/configs/configure-gaudi.sh"
+# Run the gaudi configurations
+source "${SOURCE_LOCATION}/configs/configure-gaudi.sh"
 
-# # Configure shell helpers
-# source "${SOURCE_LOCATION}/lib/install-shell-helpers.sh"
+# Configure shell helpers
+source "${SOURCE_LOCATION}/lib/install-shell-helpers.sh"
 
-# # Install Software
-# source "${SOURCE_LOCATION}/lib/install-software.sh"
+# Install Software
+source "${SOURCE_LOCATION}/lib/install-software.sh"
 
 # Install dotfiles
 source "${SOURCE_LOCATION}/lib/install-dotfiles.sh"

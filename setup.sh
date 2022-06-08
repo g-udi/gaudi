@@ -1,38 +1,68 @@
 #!/usr/bin/env bash
+# shellcheck shell=bash
+# shellcheck disable=SC1090,1091
+
+declare SOURCE_LOCATION 
+
+SOURCE_LOCATION="$( cd -- "$( dirname -- "${BASH_SOURCE[0]:-$0}"; )" &> /dev/null && pwd 2> /dev/null; )";
 
 # The source directory and target directories | Contains the files and directories I want to work with.
-if [ ! -n "$GAUDI" ]; then
-    export SOURCE_LOCATION="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
-else
-    export SOURCE_LOCATION=~/.gaudi
+if [[ -z "$GAUDI" && -d "$HOME/.gaudi" ]]; then
+    GAUDI=~/.gaudi
 fi
 
+export SOURCE_LOCATION GAUDI
+
 # Load the external configurations
-source "$SOURCE_LOCATION/lib/configs.sh"
+source "$SOURCE_LOCATION/bin/colors.sh"
+source "$SOURCE_LOCATION/bin/configs.sh"
+source "$SOURCE_LOCATION/bin/installer.sh"
+
+echo -e "
+\033c
+
+   ▄██████▄     ▄████████ ███    █▄  ████████▄   ▄█  
+  ███    ███   ███    ███ ███    ███ ███   ▀███ ███  
+  ███    █▀    ███    ███ ███    ███ ███    ███ ███▌ 
+ ▄███          ███    ███ ███    ███ ███    ███ ███▌ 
+▀▀███ ████▄  ▀███████████ ███    ███ ███    ███ ███▌ 
+  ███    ███   ███    ███ ███    ███ ███    ███ ███  
+  ███    ███   ███    ███ ███    ███ ███   ▄███ ███  
+  ████████▀    ███    █▀  ████████▀  ████████▀  █▀   
+
+${WHITE}Greetings $(whoami) .....${NC}\n
+
+Gaudi is a tool that allows you to install a set of predefined software lists! 
+Please make sure to follow the instructions carefully to avoid any uneeded installations.
+
+The Following script will set up your machine based on the various configurations specified in the config files\n
+"
 
 # Get the operating system and have it in the global exportable variable
 getOperatingSystem
 
-printf "
-${WHITE}Greetings $USER .....${NC}\n
-The Following script will set up your machine based on the various configurations specific in the config files\n"
+# # Install prerequisites
+# source "${SOURCE_LOCATION}/lib/${OS}/install-pre-requisits.sh"
 
-# Install prerequisites
-. "${SOURCE_LOCATION}/bin/${OS}/install-pre-requisits.sh"
+# # Run the ssh configurations
+# source "${SOURCE_LOCATION}/configs/configure-ssh.sh"
 
-# Run the gaudi configurations
-. "${SOURCE_LOCATION}/configs/configure-gaudi.sh"
+# # Run the gaudi configurations
+# source "${SOURCE_LOCATION}/configs/configure-gaudi.sh"
 
-# Configure shell helpers
-. "${SOURCE_LOCATION}/bin/install-shell-helpers.sh"
+# # Configure shell helpers
+# source "${SOURCE_LOCATION}/lib/install-shell-helpers.sh"
 
-# Install Software
-. "${SOURCE_LOCATION}/bin/install-software.sh"
+# # Install Software
+# source "${SOURCE_LOCATION}/lib/install-software.sh"
 
 # Install dotfiles
-. "${SOURCE_LOCATION}/bin/install-dotfiles.sh"
+source "${SOURCE_LOCATION}/lib/install-dotfiles.sh"
+
+# Install mackup
+source "${SOURCE_LOCATION}/lib/install-mackup.sh"
 
 # Install extras
-. "${SOURCE_LOCATION}/bin/install-extras.sh"
+source "${SOURCE_LOCATION}/lib/install-extras.sh"
 
-printf "Finito"
+echo -e "Setting up your machine with gaudi is finished! Enjoy"

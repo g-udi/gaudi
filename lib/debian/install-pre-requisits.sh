@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
+# shellcheck shell=bash
+# shellcheck disable=2016
 
-printf "\nWe need to prepare your machine by install some required software\n\n"
+printf "\n%s\n\n" "We need to prepare your machine by install some required software"
 
 # Updating apt to refresh repos
 sudo apt-get update
@@ -14,13 +16,13 @@ sudo apt-get curl
 sudo apt-get file
 
 if ! type git &> /dev/null; then
-    printf "We noticed that git is not installed on your machine .. Installing now ... \n" -n 1;
-    # Install git .. a must !
+    printf "%s\n" "We noticed that git is not installed on your machine .. Installing now ..." -n 1;
     sudo apt-get install git-all
 fi
 
 if ! type brew &> /dev/null; then
-    printf "We noticed that brew is not installed on your machine .. Installing now ... \n" -n 1;
+    printf "%s\n" "We noticed that brew is not installed on your machine .. Installing now ..." -n 1;
+    
     # Install Homebrew .. a must !
     bash -c "$(curl -fsSL https://raw.githubusercontent.com/Linuxbrew/install/master/install.sh)"
     test -d ~/.linuxbrew && PATH="$HOME/.linuxbrew/bin:$HOME/.linuxbrew/sbin:$PATH"

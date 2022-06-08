@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# shellcheck shell=bash
+# shellcheck disable=SC1091
 
 # Getting the operating system of the machine
 getOperatingSystem () {
@@ -15,13 +17,13 @@ getOperatingSystem () {
     esac
 }
 
-if [ ! -n "$GAUDI" ]; then
-    GAUDI=~/.gaudi
+if [ -z "$GAUDI" ]; then
+    export GAUDI=~/.gaudi
 fi
 
 if [ -d "$GAUDI" ]; then
-    printf "You already have gaudi installed..\\n"
-    printf "Setting up a fresh installation of gaudi 🌈\\n"
+    printf "%s\n" "You already have gaudi installed.."
+    printf "%s\n" "Setting up a fresh installation of gaudi 🌈"
     rm -rf $GAUDI
 fi
 
@@ -35,7 +37,7 @@ getOperatingSystem && bash -c "$(curl -kfsSL https://raw.githubusercontent.com/g
 # precedence over umasks except for filesystems mounted with option "noacl".
 umask g-w,o-w
 
-env git clone --depth=1 https://github.com/g-udi/gaudi.git "$GAUDI" || {
+env git clone --depth=1 git@github.com:g-udi/gaudi.git "$GAUDI" || {
     printf "Error: Cloning of gaudi into this machine failed :(\\n"
     exit 1
 }

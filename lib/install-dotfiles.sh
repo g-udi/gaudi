@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 
-echo -e "
+_echo "
 
 ${YELLOW}
 ██████   ██████  ████████     ███████ ██ ██      ███████ ███████ 
@@ -26,7 +26,9 @@ When invoked with a directory as an argument, stow simply changes into that dire
 When invoked with many directories as arguments, it does this for each directory listed.
 
 "
-read -rp  "Would you like to install your dotfiles wtih stow? " -n 1
+
+printf  "Would you like to install your dotfiles wtih stow? "
+read -r -n 1
 
 if [[ $REPLY =~ ^[yY]$ ]]; then
     if ! command_exists stow; then

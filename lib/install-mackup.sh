@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 
-echo -e "
+_echo "
 
 Keep your application settings in sync (OS X/Linux) with Mackup
 
@@ -17,7 +17,8 @@ ${YELLOW}Mackup makes setting up the environment easy and simple, saving time fo
 "
 
 if [[ -d "$GAUDI/templates/mackup" && -f "$HOME"/.mackup.cfg ]]; then
-    read -rp  "We noticed you have mackup folder available. Would you like to run mackup backup?  " -n 1
+    printf "We noticed you have mackup folder available. Would you like to run mackup backup?  "
+    read -r -n 1
     if [[ $REPLY =~ ^[yY]$ ]]; then
         if ! command_exists stow; then
             printf "\n\n%s\n" "We noticed that mackup is not installed on your machine .. Installing now ..."

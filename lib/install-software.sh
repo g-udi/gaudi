@@ -37,14 +37,16 @@ for item in "${softwareLists[@]}"; do
                 printf "\n%b\n" "🤖 Installing${YELLOW}${_listName#*:} ${listType}${NC} software list:${MAGENTA}${_listDescription#*:}${NC}"
             fi;
 
-            read -rp "Would you like to proceed ? [Y/N] " -n 1;
+            printf "Would you like to proceed ? [Y/N] ";
+            read -r -n 1
             echo ""
 
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 . "$LIST"
                 referencedList=$(echo "${listName#*:}" | xargs)
                 __list=$referencedList[@]
-                read -rp "Would you like to install all the recommended software [Type N to select what you want to install one by one]? [Y/N] " -n 1;
+                printf "Would you like to install all the recommended software [Type N to select what you want to install one by one]? [Y/N] ";
+                read -r -n 1
                 echo "";
                 if [[ $REPLY =~ ^[Yy]$ ]]; then
                     installSoftwareList "$listCommand" "false" "${!__list}"

@@ -3,11 +3,13 @@
 
 printf "Setting up SSH Installation...\n"
 
-read -rp "Have you configured SSH? [Y/N] " -n 1;
+printf "Have you configured SSH? [Y/N] ";
+read -r -n 1
 echo "";
 if [[ $REPLY =~ ^[Nn]$ ]]; then
 
-	read -rp "What is the email address you want to configure SSH with? ";
+	printf "What is the email address you want to configure SSH with? ";
+	read -r -n 1
 
 	echo "Configuring SSH with email: $REPLY";
 	ssh-keygen -t rsa -b 4096 -C "$REPLY" 

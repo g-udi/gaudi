@@ -18,7 +18,11 @@ function getOperatingSystem {
         ;;
     * );;
     esac    
-}  
+}
+
+function _echo {
+    [[ "$0" == "-zsh" ]] && echo "$@" || echo -e "$@"
+}
 
 
 # Checks if a command already exists

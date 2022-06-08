@@ -23,8 +23,8 @@ function installSoftwareList {
         fi
         softwareDescription="${listItem##*::}"
         if [[ $isWithPrompt = "true" ]]; then
-            read -rp "👾 $(printf "${MAGENTA}%s\n${YELLOW}%s ${NC}%s\n" "$software" "Description:" "$softwareDescription") | Would you like to install this? [Y/N] " -n 1 </dev/tty
-            echo ""
+            printf "${MAGENTA}%s\n${YELLOW}%s ${NC}%s\n" "$software" "Description:" "$softwareDescription" "| Would you like to install this? [Y/N] "
+            read -r -n 1
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 ${installCommand} "${software}"
             fi;

@@ -6,7 +6,8 @@ declare GAUDI_DEFAULT_TEMPLATES GAUDI_TEMPLATES_LOCATION
 GAUDI_DEFAULT_TEMPLATES="git@github.com:g-udi/gaudi-templates"
 GAUDI_TEMPLATES_LOCATION="${HOME}/.gaudi/templates/"
 
-echo "The next step will prompt you for the url of gaudi templates (lists, hooks, templates, etc.)...
+_echo "
+The next step will prompt you for the url of gaudi templates (lists, hooks, templates, etc.)...
 
 ${YELLOW}[D,d]${NC} will install g-udi's default templates from: ${MAGENTA} $GAUDI_DEFAULT_TEMPLATES
 
@@ -21,8 +22,9 @@ if [[ $GAUDI_TEMPLATE_URL =~ ^[dD]$ ]]; then
 fi;
 
 if [[ -d $GAUDI_TEMPLATES_LOCATION ]]; then
-    printf "${RED}%s${NC}\n\n" "We noticed that there already gaudi templates in $GAUDI_TEMPLATES_LOCATION"
-    read -rp "Would you like to overwrite those? [Y/N] " -n 1;
+    printf "${RED}%s${NC}\n\n%s" "We noticed that there already gaudi templates in $GAUDI_TEMPLATES_LOCATION" "Would you like to overwrite those? [Y/N] "
+    read -r -n 1;
+    
     echo "";
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         rm -rf "$GAUDI_TEMPLATES_LOCATION"

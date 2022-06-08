@@ -18,7 +18,7 @@ source "$SOURCE_LOCATION/bin/colors.sh"
 source "$SOURCE_LOCATION/bin/configs.sh"
 source "$SOURCE_LOCATION/bin/installer.sh"
 
-echo -e "
+_echo "
 \033c
 
    ▄██████▄     ▄████████ ███    █▄  ████████▄   ▄█  
@@ -65,4 +65,4 @@ source "${SOURCE_LOCATION}/lib/install-mackup.sh"
 # Install extras
 source "${SOURCE_LOCATION}/lib/install-extras.sh"
 
-echo -e "Setting up your machine with gaudi is finished! Enjoy"
+_echo "Setting up your machine with gaudi is finished! Enjoy"

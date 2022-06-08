@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 
-echo -e "${RED}
+_echo "${RED}
 
 
  ▄  █ ▄███▄   █    █ ▄▄  ▄███▄   █▄▄▄▄   ▄▄▄▄▄
@@ -36,11 +36,13 @@ you'll take advantage of the hundreds of powerful plugins and beautiful themes. 
 function _install-gaudi-bash {
     
     echo ""
-    read -rp "Would you like to (re)-install gaudi-bash ? [Y/N] " -n 1 </dev/tty;
+    printf "Would you like to (re)-install gaudi-bash ? [Y/N] ";
+    read -r -n 1
     echo ""
     
     if [[ $REPLY =~ ^[yY]$ ]]; then
-        read -rp "Please type url of the gaudi-bash repo (e.g., g-udi/gaudi-bash) ? Type [D] for the default gaudi-bash: " __GAUDI_BASH_URL </dev/tty;
+        printf "Please type url of the gaudi-bash repo (e.g., g-udi/gaudi-bash) ? Type [D] for the default gaudi-bash: ";
+        read -r -n 1 __GAUDI_BASH_URL
         echo ""
         if [[ $__GAUDI_BASH_URL =~ ^[dD]$ ]]; then
             bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi-bash/master/install.sh)" -s --basic
@@ -57,7 +59,8 @@ function _install-oh-my-zsh {
     function __fetch-oh-my-zsh {
         
         echo ""
-        read -rp "Please type url of the oh-my-zsh repo (e.g., robbyrussell/oh-my-zsh) ? Type [D] for the default oh-my-zsh: " __OH_MY_ZSH_URL </dev/tty;
+        printf "Please type url of the oh-my-zsh repo (e.g., robbyrussell/oh-my-zsh) ? Type [D] for the default oh-my-zsh: ";
+        read -r -n 1 __OH_MY_ZSH_URL
         echo ""
         
         if [[ $__OH_MY_ZSH_URL =~ ^[dD]$ ]]; then
@@ -68,10 +71,12 @@ function _install-oh-my-zsh {
     }
 
     if [[ -d ${HOME}/.oh-my-zsh ]]; then
-        read -rp "oh-my-zsh is already installed! Would you like to re-install it ? [Y/N] " -n 1 </dev/tty;
+        printf "oh-my-zsh is already installed! Would you like to re-install it ? [Y/N] ";
+        read -r -n 1
         [[ $REPLY =~ ^[yY]$ ]] && rm -rf "${HOME}/.oh-my-zsh" && __fetch-oh-my-zsh
     else        
-        read -rp "Would you like to install oh-my-zsh ? [Y/N] " -n 1 </dev/tty;
+        printf "Would you like to install oh-my-zsh ? [Y/N] ";
+        read -r -n 1
         echo ""
         if [[ $REPLY =~ ^[yY]$ ]]; then
             __fetch-oh-my-zsh

@@ -3,7 +3,7 @@
 
 declare GAUDI_DEFAULT_TEMPLATES GAUDI_TEMPLATES_LOCATION
 
-GAUDI_DEFAULT_TEMPLATES="git@github.com:g-udi/gaudi-templates"
+GAUDI_DEFAULT_TEMPLATES="https://github.com/-udi/gaudi-templates"
 GAUDI_TEMPLATES_LOCATION="${HOME}/.gaudi/templates/"
 
 _echo "

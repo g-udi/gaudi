@@ -7,7 +7,7 @@ source "$SOURCE_LOCATION/lib/${OS}/config-sudo.sh"
 printf "\nWe need to prepare your machine by install some required software\n\n"
 
 if ! type brew &> /dev/null; then
-    printf "%s\n" "We noticed that brew is not installed on your machine .. Installing now ..." -n 1;
+    printf "%s\n" "We noticed that brew is not installed on your machine .. Installing now ...";
     /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 else
     printf "${RED}%s$GREEN %s ${NC}" "brew is installed" "✓"
@@ -21,7 +21,7 @@ else
 fi
 
 if ! type git &> /dev/null; then
-    printf "%s\n" "We noticed that git is not installed on your machine .. Installing now ..." -n 1;
+    printf "%s\n" "We noticed that git is not installed on your machine .. Installing now ...";
     brew install git
 else
     printf "${RED}%s$GREEN %s ${NC}\n\n" "git is installed" "✓"

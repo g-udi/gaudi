@@ -4,7 +4,8 @@
 echo ""
 
 if [ -d "$GAUDI/templates/extras" ]; then
-    read -rp  "We noticed you have scripts in the 'extras' folder. Would you like to run them?  " -n 1
+    printf  "We noticed you have scripts in the 'extras' folder. Would you like to run them?  "
+    read -r -n 1
     if [[ $REPLY =~ ^[yY]$ ]]; then
         for shfile in "$GAUDI"/templates/extras/*.sh
         do

@@ -14,7 +14,8 @@ ${YELLOW}[D,d]${NC} will install g-udi's default templates from: ${MAGENTA} $GAU
 ${YELLOW}If you want to point to any other location then just type the github url of that repo${NC}
 "
 
-read -rp ">> " GAUDI_TEMPLATE_URL </dev/tty;
+printf ">> "
+read -r ">> " GAUDI_TEMPLATE_URL </dev/tty;
 echo ""
 
 if [[ $GAUDI_TEMPLATE_URL =~ ^[dD]$ ]]; then

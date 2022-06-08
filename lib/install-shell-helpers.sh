@@ -85,7 +85,8 @@ function _install-oh-my-zsh {
 
 }
 
-read -rp "Do you need to install any of the shell helpers [recommended] ? [Y/N] " -n 1 </dev/tty;
+printf "Do you need to install any of the shell helpers [recommended] ? [Y/N] ";
+read -r -n 1
 echo ""
 if [[ $REPLY =~ ^[yY]$ ]]; then
     (_install-gaudi-bash)

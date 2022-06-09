@@ -42,6 +42,8 @@ The Following script will set up your machine based on the various configuration
 getOperatingSystem
 getShell
 
+[[ $GAUDI_SHELL != "bash" ]] && printf "\n$RED%s$NC\n" "gaudi requires bash as your interactive shell! please adjust accordingly and re-run the setup" && exit
+
 # Install prerequisites
 source "${SOURCE_LOCATION}/lib/${OS}/install-pre-requisits.sh"
 

@@ -22,7 +22,7 @@ echo ""
 if [[ $GAUDI_TEMPLATE_URL =~ ^[dD]$ ]]; then
     GAUDI_TEMPLATE_URL=$GAUDI_DEFAULT_TEMPLATES
 fi;
-echo "GAUDI_TEMPLATE_URL>>> $GAUDI_TEMPLATE_URL"
+
 if [[ -d $GAUDI_TEMPLATES_LOCATION ]]; then
     printf "${RED}%s${NC}\n\n%s" "We noticed that there already gaudi templates in $GAUDI_TEMPLATES_LOCATION" "Would you like to overwrite those? [Y/N] "
     read -r REPLY;
@@ -30,10 +30,10 @@ if [[ -d $GAUDI_TEMPLATES_LOCATION ]]; then
     echo "";
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         rm -rf "$GAUDI_TEMPLATES_LOCATION"
-        git clone "$GAUDI_TEMPLATE_URL" "$GAUDI_TEMPLATES_LOCATION"
+        git clone $GAUDI_TEMPLATE_URL "$GAUDI_TEMPLATES_LOCATION"
     fi;
 else
-    mkdir -p "$HOME/.gaudi/templates"
-    git clone "$GAUDI_TEMPLATE_URL" "$GAUDI_TEMPLATES_LOCATION"
+    /bin/mkdir "$HOME/.gaudi/templates"
+    git clone $GAUDI_TEMPLATE_URL "$GAUDI_TEMPLATES_LOCATION"
 fi
 

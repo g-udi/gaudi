@@ -8,7 +8,7 @@ printf "\nWe need to prepare your machine by install some required software\n\n"
 
 if ! type brew &> /dev/null; then
     printf "%s\n" "We noticed that brew is not installed on your machine .. Installing now ...";
-    /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 else
     printf "${RED}%s$GREEN %s ${NC}" "brew is installed" "✓"
 fi

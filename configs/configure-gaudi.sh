@@ -32,7 +32,7 @@ if [[ -d $GAUDI_TEMPLATES_LOCATION ]]; then
         git clone $GAUDI_TEMPLATE_URL "$GAUDI_TEMPLATES_LOCATION"
     fi;
 else
-    mkdir "${HOME}/.gaudi/templates"
+    mkdir -p "${HOME}/.gaudi/templates"
     git clone $GAUDI_TEMPLATE_URL "$GAUDI_TEMPLATES_LOCATION"
 fi
 

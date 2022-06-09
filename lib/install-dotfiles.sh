@@ -28,7 +28,7 @@ When invoked with many directories as arguments, it does this for each directory
 "
 
 printf  "Would you like to install your dotfiles wtih stow? "
-read -re REPLY
+read -r REPLY
 
 if [[ $REPLY =~ ^[yY]$ ]]; then
     if ! command_exists stow; then

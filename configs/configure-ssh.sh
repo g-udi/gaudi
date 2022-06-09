@@ -4,12 +4,12 @@
 printf "Setting up SSH Installation...\n"
 
 printf "Have you configured SSH? [Y/N] ";
-read -r REPLY
+read -re REPLY
 echo "";
 if [[ $REPLY =~ ^[Nn]$ ]]; then
 
 	printf "What is the email address you want to configure SSH with? ";
-	read -r REPLY
+	read -re REPLY
 
 	echo "Configuring SSH with email: $REPLY";
 	ssh-keygen -t rsa -b 4096 -C "$REPLY" 

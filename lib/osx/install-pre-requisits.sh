@@ -15,7 +15,7 @@ fi
 
 # Add Homebrew's executable directory to the front of the PATH
 if ! grep -q "^export PATH=/usr/local/bin:${PATH}$" ~/.bash_profile; then
-    printf "${YELLOW}%s\n${NC}" "Updating shell profile for homebrew"
+    printf "${YELLOW}%s\n${NC}\n" "Updating shell profile for homebrew"
     echo "export PATH=/usr/local/bin:$PATH" >> "$GAUDI_SHELL_PROFILE"
     echo "export PATH=/opt/homebrew/bin" >> "$GAUDI_SHELL_PROFILE"
     [[ $GAUDI_SHELL == "zsh" ]] && echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> "$HOME/.zshrc"
@@ -33,7 +33,7 @@ else
 fi
 
 if ! type git &> /dev/null; then
-    printf "%s\n" "We noticed that git is not installed on your machine .. Installing now ...";
+    printf "\n%s\n" "We noticed that git is not installed on your machine .. Installing now ...";
     brew install git
 else
     printf "${RED}%s$GREEN %s ${NC}\n\n" "git is installed" "✓"

@@ -37,12 +37,12 @@ function _install-gaudi-bash {
     
     echo ""
     printf "Would you like to (re)-install gaudi-bash ? [Y/N] ";
-    read -r REPLY
+    read -re REPLY
     echo ""
     
     if [[ $REPLY =~ ^[yY]$ ]]; then
         printf "Please type url of the gaudi-bash repo (e.g., g-udi/gaudi-bash) ? Type [D] for the default gaudi-bash: ";
-        read -r __GAUDI_BASH_URL
+        read -re __GAUDI_BASH_URL
         echo ""
         if [[ $__GAUDI_BASH_URL =~ ^[dD]$ ]]; then
             bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi-bash/master/install.sh)" -s --basic
@@ -60,7 +60,7 @@ function _install-oh-my-zsh {
         
         echo ""
         printf "Please type url of the oh-my-zsh repo (e.g., robbyrussell/oh-my-zsh) ? Type [D] for the default oh-my-zsh: ";
-        read -r __OH_MY_ZSH_URL
+        read -re __OH_MY_ZSH_URL
         echo ""
         
         if [[ $__OH_MY_ZSH_URL =~ ^[dD]$ ]]; then
@@ -72,11 +72,11 @@ function _install-oh-my-zsh {
 
     if [[ -d ${HOME}/.oh-my-zsh ]]; then
         printf "oh-my-zsh is already installed! Would you like to re-install it ? [Y/N] ";
-        read -r REPLY
+        read -re REPLY
         [[ $REPLY =~ ^[yY]$ ]] && rm -rf "${HOME}/.oh-my-zsh" && __fetch-oh-my-zsh
     else        
         printf "Would you like to install oh-my-zsh ? [Y/N] ";
-        read -r REPLY
+        read -re REPLY
         echo ""
         if [[ $REPLY =~ ^[yY]$ ]]; then
             __fetch-oh-my-zsh
@@ -86,7 +86,7 @@ function _install-oh-my-zsh {
 }
 
 printf "Do you need to install any of the shell helpers [recommended] ? [Y/N] ";
-read -r REPLY
+read -re REPLY
 echo ""
 if [[ $REPLY =~ ^[yY]$ ]]; then
     (_install-gaudi-bash)

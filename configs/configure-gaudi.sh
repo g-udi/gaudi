@@ -15,7 +15,7 @@ ${YELLOW}If you want to point to any other location then just type the github ur
 "
 
 printf ">> "
-read -r GAUDI_TEMPLATE_URL;
+read -re GAUDI_TEMPLATE_URL;
 echo ""
 
 if [[ $GAUDI_TEMPLATE_URL =~ ^[dD]$ ]]; then
@@ -24,7 +24,7 @@ fi;
 
 if [[ -d $GAUDI_TEMPLATES_LOCATION ]]; then
     printf "${RED}%s${NC}\n\n%s" "We noticed that there already gaudi templates in $GAUDI_TEMPLATES_LOCATION" "Would you like to overwrite those? [Y/N] "
-    read -r REPLY;
+    read -re REPLY;
     
     echo "";
     if [[ $REPLY =~ ^[Yy]$ ]]; then

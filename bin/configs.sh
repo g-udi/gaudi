@@ -20,6 +20,19 @@ function getOperatingSystem {
     esac    
 }
 
+# Gets the current shell type e.g., bash or zsh
+# e.g., getShell
+function getShell {
+    if test -n "$ZSH_VERSION"; then
+        export GAUDI_SHELL="zsh"
+        export GAUDI_SHELL_PROFILE="$HOME/.zshrc"
+    elif test -n "$BASH_VERSION"; then
+        export GAUDI_SHELL="bash"
+        export GAUDI_SHELL_PROFILE="$HOME/.bash_profile"
+    fi
+}
+
+# Adapts echo to see if we can use the -e for bash or not for zsh
 function _echo {
     [[ "$0" == "-zsh" ]] && echo "$@" || echo -e "$@"
 }

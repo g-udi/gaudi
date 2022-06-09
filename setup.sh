@@ -40,6 +40,7 @@ The Following script will set up your machine based on the various configuration
 
 # Get the operating system and have it in the global exportable variable
 getOperatingSystem
+getShell
 
 # Install prerequisites
 source "${SOURCE_LOCATION}/lib/${OS}/install-pre-requisits.sh"

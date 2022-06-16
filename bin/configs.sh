@@ -3,8 +3,14 @@
 # shellcheck disable=SC2181
 
 
+# alias to point to brew when its freshly installed
 function brew {
     /opt/homebrew/bin/brew "$@"
+}
+
+# alias to point to brew when its freshly installed
+function mas {
+    /opt/homebrew/bin/mas "$@"
 }
 
 # Get the operating system version of the machine 

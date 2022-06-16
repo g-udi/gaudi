@@ -2,7 +2,10 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2181
 
-alias brew="/opt/homebrew/bin/brew"
+
+function brew {
+    /opt/homebrew/bin/brew "$@"
+}
 
 # Get the operating system version of the machine 
 function get_os {

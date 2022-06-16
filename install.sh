@@ -3,7 +3,7 @@
 # shellcheck disable=SC1091
 
 # Getting the operating system of the machine
-getOperatingSystem () {
+get_os () {
     case $(uname) in
     Linux )
         command -v yum && { export OS=centos; return; }
@@ -28,7 +28,7 @@ if [ -d "$GAUDI" ]; then
 fi
 
 # Run the installation pre-requisites based on each operating system defined in gaudi
-getOperatingSystem && bash -c "$(curl -kfsSL https://raw.githubusercontent.com/g-udi/gaudi/master/bin/${OS}/install-pre-requisits.sh)"
+get_os && bash -c "$(curl -kfsSL https://raw.githubusercontent.com/g-udi/gaudi/master/bin/${OS}/install-pre-requisits.sh)"
 
 # Prevent the cloned repository from having insecure permissions. Failing to do
 # so causes compinit() calls to fail with "command not found: compdef" errors

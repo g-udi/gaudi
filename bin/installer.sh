@@ -61,5 +61,3 @@ gem_install_or_update() {
     gem install "$@"
   fi
 }
-
-export BREW_SUCCESS BREW_FAILURE

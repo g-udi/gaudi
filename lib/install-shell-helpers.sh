@@ -36,49 +36,26 @@ you'll take advantage of the hundreds of powerful plugins and beautiful themes. 
 function _install-gaudi-bash {
     
     echo ""
-    printf "Would you like to (re)-install gaudi-bash ? [Y/N] ";
-    read -r REPLY
-    echo ""
+    printf "Would you like to install gaudi-bash ? [Y/N] ";
     
-    if [[ $REPLY =~ ^[yY]$ ]]; then
-        printf "Please type url of the gaudi-bash repo (e.g., g-udi/gaudi-bash) ? Type [D] for the default gaudi-bash: ";
-        read -r __GAUDI_BASH_URL
-        echo ""
-        if [[ $__GAUDI_BASH_URL =~ ^[dD]$ ]]; then
-            bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi-bash/master/install.sh)" -s --basic
-        else
-            bash -c "$(curl -fsSL https://raw.githubusercontent.com/"$__GAUDI_BASH_URL"/master/install.sh)" -s --basic
-        fi;
+    if [[ $(read_answer) =~ ^[yY]$ ]]; then
+        bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi-bash/master/install.sh)" -s --basic
     fi;
 }
 
 function _install-oh-my-zsh {
 
-    echo ""
-
     function __fetch-oh-my-zsh {
+        0>/dev/null bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" -s --unattended
         
-        echo ""
-        printf "Please type url of the oh-my-zsh repo (e.g., robbyrussell/oh-my-zsh) ? Type [D] for the default oh-my-zsh: ";
-        read -r __OH_MY_ZSH_URL
-        echo ""
-        
-        if [[ $__OH_MY_ZSH_URL =~ ^[dD]$ ]]; then
-            0>/dev/null bash -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)" -s --unattended
-        else
-            0>/dev/null bash -c "$(curl -fsSL https://raw.githubusercontent.com/"$__OH_MY_ZSH_URL"/master/tools/install.sh)" -s --unattended
-        fi;
     }
 
     if [[ -d ${HOME}/.oh-my-zsh ]]; then
         printf "oh-my-zsh is already installed! Would you like to re-install it ? [Y/N] ";
-        read -r REPLY
-        [[ $REPLY =~ ^[yY]$ ]] && rm -rf "${HOME}/.oh-my-zsh" && __fetch-oh-my-zsh
+        [[ $(read_answer) =~ ^[yY]$ ]] && rm -rf "${HOME}/.oh-my-zsh" && __fetch-oh-my-zsh
     else        
         printf "Would you like to install oh-my-zsh ? [Y/N] ";
-        read -r REPLY
-        echo ""
-        if [[ $REPLY =~ ^[yY]$ ]]; then
+        if [[ $(read_answer) =~ ^[yY]$ ]]; then
             __fetch-oh-my-zsh
         fi;
     fi
@@ -86,9 +63,7 @@ function _install-oh-my-zsh {
 }
 
 printf "Do you need to install any of the shell helpers [recommended] ? [Y/N] ";
-read -r REPLY
-echo ""
-if [[ $REPLY =~ ^[yY]$ ]]; then
+if [[ $(read_answer) =~ ^[yY]$ ]]; then
     (_install-gaudi-bash)
     (_install-oh-my-zsh)
 fi;

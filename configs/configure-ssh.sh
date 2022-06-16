@@ -2,17 +2,14 @@
 # shellcheck shell=bash
 
 printf "Setting up SSH Installation...\n"
-
 printf "Have you configured SSH? [Y/N] ";
-read -r REPLY
-echo "";
-if [[ $REPLY =~ ^[Nn]$ ]]; then
+if [[ $(read_answer) =~ ^[Nn]$ ]]; then
 
 	printf "What is the email address you want to configure SSH with? ";
-	read -r REPLY
-
-	echo "Configuring SSH with email: $REPLY";
-	ssh-keygen -t rsa -b 4096 -C "$REPLY" 
+	EMAIL=$(read_email)
+	
+	echo "Configuring SSH with email: $EMAIL";
+	ssh-keygen -t rsa -b 4096 -C "$EMAIL" 
 	# Add your key to the ssh-agent
 	eval "$(ssh-agent -s)"
 	ssh-add ~/.ssh/id_rsa

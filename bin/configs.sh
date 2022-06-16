@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
+# shellcheck disable=SC2181
 
-export EMAIL_REGEX="^[a-z0-9!#\$%&'*+/=?^_\`{|}~-]+(\.[a-z0-9!#$%&'*+/=?^_\`{|}~-]+)*@([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9]([a-z0-9-]*[a-z0-9])?\$"
+alias brew="/opt/homebrew/bin/brew"
 
 # Get the operating system version of the machine 
-function getOperatingSystem {
+function get_os {
     printf "\n%s\n" "[INFO] Getting bash version ...."
     bash --version
     case $(uname) in
@@ -20,9 +21,41 @@ function getOperatingSystem {
     esac    
 }
 
+function read_answer {
+    options=${1:-yYnN}
+    input=
+    while [[ $input = "" ]]; do
+        read -r -n 1 input
+        ! [[ $input =~ ^[$options]$ ]] && printf "\n${RED}%s ${NC}%s " "[ERROR]" "Please enter a valid answer [yY|nN]" >&2 && unset input
+    done
+    [[ -n $input ]] && echo -e "\n" >&2 && echo "$input"
+}
+
+function read_email {
+    local EMAIL_REGEX="^[a-z0-9!#\$%&'*+/=?^_\`{|}~-]+(\.[a-z0-9!#$%&'*+/=?^_\`{|}~-]+)*@([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9]([a-z0-9-]*[a-z0-9])?\$"
+    input=
+    while [[ $input = "" ]]; do
+        read -r input
+        ! [[ $input =~ $EMAIL_REGEX ]] && printf "\n${RED}%s ${NC}%s " "[ERROR]" "Please enter a valid e-mail [yY|nN]" >&2 && unset input
+    done
+    [[ -n $input ]] && echo -e "\n" >&2 && echo "$input"
+}
+
+function read_git_url {
+    input=
+    while [[ $input = "" ]]; do
+        read -r input
+        GIT_ASKPASS=true git ls-remote "$input" > /dev/null 2>&1
+        if [ "$?" -ne 0 ]; then
+            printf "\n${RED}%s ${NC}%s ${YELLOW}%s ${NC}" "[ERROR]" "Unable to clone the repo in: $input" ">>> Please enter a new url:" >&2 && unset input
+        fi
+    done
+    [[ -n $input ]] && echo -e "\n" >&2 && echo "$input"
+}
+
 # Gets the current shell type e.g., bash or zsh
-# e.g., getShell
-function getShell {
+# e.g., get_shell_type
+function get_shell_type {
     if test -n "$ZSH_VERSION"; then
         export GAUDI_SHELL="zsh"
         export GAUDI_SHELL_PROFILE="$HOME/.zshrc"
@@ -32,11 +65,11 @@ function getShell {
     fi
 }
 
+
 # Adapts echo to see if we can use the -e for bash or not for zsh
 function _echo {
     [[ "$0" == "-zsh" ]] && echo "$@" || echo -e "$@"
 }
-
 
 # Checks if a command already exists
 # e.g., command_exists brew
@@ -44,3 +77,5 @@ function _echo {
 function command_exists {
     type "$1" &> /dev/null ;
 }
+
+export brew

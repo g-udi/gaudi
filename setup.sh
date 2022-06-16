@@ -6,12 +6,7 @@ declare SOURCE_LOCATION
 
 SOURCE_LOCATION="$( cd -- "$( dirname -- "${BASH_SOURCE[0]:-$0}"; )" &> /dev/null && pwd 2> /dev/null; )";
 
-# The source directory and target directories | Contains the files and directories I want to work with.
-if [[ -z "$GAUDI" && -d "$HOME/.gaudi" ]]; then
-    GAUDI=~/.gaudi
-fi
-
-export SOURCE_LOCATION GAUDI
+export SOURCE_LOCATION
 
 # Load the external configurations
 source "$SOURCE_LOCATION/bin/colors.sh"
@@ -39,8 +34,8 @@ The Following script will set up your machine based on the various configuration
 "
 
 # Get the operating system and have it in the global exportable variable
-getOperatingSystem
-getShell
+get_os
+get_shell_type
 
 [[ $GAUDI_SHELL != "bash" ]] && printf "\n$RED%s$NC\n" "gaudi requires bash as your interactive shell! please adjust accordingly and re-run the setup" && exit
 

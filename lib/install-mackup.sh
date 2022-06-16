@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 
+if [[ -d "$GAUDI_TEMPLATES_LOCATION/templates/mackup" && -f "$HOME"/.mackup.cfg ]]; then
+
 _echo "
 
 Keep your application settings in sync (OS X/Linux) with Mackup
@@ -15,11 +17,8 @@ By only tracking pure configuration files, it keeps the crap out of your freshly
 ${YELLOW}Mackup makes setting up the environment easy and simple, saving time for your family, great ideas, and all the cool stuff you like. invoked with many directories as arguments, it does this for each directory listed.${NC}
 
 "
-
-if [[ -d "$GAUDI/templates/mackup" && -f "$HOME"/.mackup.cfg ]]; then
     printf "We noticed you have mackup folder available. Would you like to run mackup backup?  "
-    read -r REPLY
-    if [[ $REPLY =~ ^[yY]$ ]]; then
+    if [[ $(read_answer) =~ ^[yY]$ ]]; then
         if ! command_exists stow; then
             printf "\n\n%s\n" "We noticed that mackup is not installed on your machine .. Installing now ..."
             brew install mackup

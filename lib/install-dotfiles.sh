@@ -28,9 +28,7 @@ When invoked with many directories as arguments, it does this for each directory
 "
 
 printf  "Would you like to install your dotfiles wtih stow? "
-read -r REPLY
-
-if [[ $REPLY =~ ^[yY]$ ]]; then
+if [[ $(read_answer) =~ ^[yY]$ ]]; then
     if ! command_exists stow; then
         printf "\n\n%s\n" "We noticed that stow is not installed on your machine .. Installing now ..."
         brew install stow
@@ -39,10 +37,10 @@ if [[ $REPLY =~ ^[yY]$ ]]; then
     fi
 fi
 
-if [[ -d "$GAUDI/templates/dotfiles" ]]; then
-    for dotfile in "$GAUDI"/templates/dotfiles/* ; do
+if [[ -d "$GAUDI_TEMPLATES_LOCATION/templates/dotfiles" ]]; then
+    for dotfile in "$GAUDI_TEMPLATES_LOCATION"/templates/dotfiles/* ; do
             file=$(basename "$dotfile")
             printf "${MAGENTA}%s ${WHITE}%s ${GREEN}%s ${NC}\n" "[STOW]" "Linking $dotfile" "✓"
-            stow "$file" -d "$GAUDI"/templates/dotfiles/ -t "$HOME"
+            stow "$file" -d "$GAUDI_TEMPLATES_LOCATION"/templates/dotfiles/ -t "$HOME"
     done
 fi

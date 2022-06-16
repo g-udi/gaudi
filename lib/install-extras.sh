@@ -3,11 +3,10 @@
 
 echo ""
 
-if [ -d "$GAUDI/templates/extras" ]; then
+if [ -d "$GAUDI_TEMPLATES_LOCATION/templates/extras" ]; then
     printf  "We noticed you have scripts in the 'extras' folder. Would you like to run them?  "
-    read -r REPLY
-    if [[ $REPLY =~ ^[yY]$ ]]; then
-        for shfile in "$GAUDI"/templates/extras/*.sh
+    if [[ $(read_answer) =~ ^[yY]$ ]]; then
+        for shfile in "$GAUDI_TEMPLATES_LOCATION"/templates/extras/*.sh
         do
             chmod +x "$shfile"
             $shfile

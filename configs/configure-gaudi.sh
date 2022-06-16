@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 
-declare GAUDI_DEFAULT_TEMPLATES GAUDI_TEMPLATES_LOCATION
+declare GAUDI_TEMPLATES_LOCATION
 
-GAUDI_DEFAULT_TEMPLATES="https://github.com/g-udi/gaudi-templates"
 GAUDI_TEMPLATES_LOCATION="${HOME}/.gaudi/templates/"
 
 function _clone-gaudi-templates {
@@ -11,37 +10,27 @@ function _clone-gaudi-templates {
     _echo "
 The next step will prompt you for the url of gaudi templates (lists, hooks, templates, etc.)...
 
-${YELLOW}[D,d]${NC} will install g-udi's default templates from: ${MAGENTA} $GAUDI_DEFAULT_TEMPLATES
+${MAGENTA}Example templates can be found at https://github.com/g-udi/gaudi-templates${NC}
 
-${YELLOW}If you want to point to any other location then just type the github url of that repo${NC}
+${YELLOW}Please enter the url of the templates git repo${NC}
 "
 
     printf ">> "
-    read -r GAUDI_TEMPLATE_URL;
-    echo ""
-
-
-    if [[ $GAUDI_TEMPLATE_URL =~ ^[dD]$ ]]; then
-        GAUDI_TEMPLATE_URL=$GAUDI_DEFAULT_TEMPLATES
-    fi;
-
+    GAUDI_TEMPLATE_URL=$(read_git_url);
     git clone "$GAUDI_TEMPLATE_URL" "$GAUDI_TEMPLATES_LOCATION"
 
 }
 
 if [[ -d $GAUDI_TEMPLATES_LOCATION ]]; then
     printf "${RED}%s${NC}\n\n%s" "We noticed that there already gaudi templates in $GAUDI_TEMPLATES_LOCATION" "Would you like to overwrite those? [Y/N] "
-    read -r REPLY;
-    
-    echo "";
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
+    if [[ $(read_answer) =~ ^[yY]$ ]]; then
         rm -rf "$GAUDI_TEMPLATES_LOCATION"
         _clone-gaudi-templates
     fi;
 else
-    mkdir "$HOME/.gaudi/templates"
+    mkdir -p "$GAUDI_TEMPLATES_LOCATION"
     _clone-gaudi-templates
 fi
 
 
-
+export GAUDI_TEMPLATES_LOCATION

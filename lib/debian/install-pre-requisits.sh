@@ -15,12 +15,12 @@ sudo apt-get install apt-transport-https
 sudo apt-get curl
 sudo apt-get file
 
-if ! type git &> /dev/null; then
+if ! command_exists git; then
     printf "%s\n" "We noticed that git is not installed on your machine .. Installing now ...";
     sudo apt-get install git-all
 fi
 
-if ! type brew &> /dev/null; then
+if ! command_exists brew; then
     printf "%s\n" "We noticed that brew is not installed on your machine .. Installing now ...";
     
     # Install Homebrew .. a must !

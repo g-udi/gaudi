@@ -7,11 +7,6 @@ function _brew {
     /opt/homebrew/bin/brew "$@"
 }
 
-# alias to point to brew when its freshly installed
-function mas {
-    "$(brew)"/mas "$@"
-}
-
 # Get the operating system version of the machine 
 function get_os {
     printf "\n%s\n" "[INFO] Getting bash version ...."

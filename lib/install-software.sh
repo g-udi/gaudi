@@ -5,8 +5,8 @@
 softwareLists=(
     "debian|apt-get::sudo apt-get -y --force-yes install"
     "*|brew::brew_install_or_upgrade"
-    "osx|mas::mas install"
-    "osx|cask::brew install --cask"
+    "osx|mas::_mas install"
+    "osx|cask::_brew install --cask"
     "*|npm::npm install -g"
     "*|pip::pip3 install --upgrade --user --ignore-installed six"
     "*|go::go get"

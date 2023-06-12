@@ -3,12 +3,8 @@
 # shellcheck disable=SC2181
 
 # alias to point to brew when its freshly installed
-function gaudi_brew {
-    if command_exists brew; then
-        brew "$@"
-    else
-        /opt/homebrew/bin/brew "$@"
-    fi
+function _brew {
+    /opt/homebrew/bin/brew "$@"
 }
 
 # alias to point to brew when its freshly installed
@@ -80,7 +76,7 @@ function get_shell_type {
 
 # Adapts echo to see if we can use the -e for bash or not for zsh
 function _echo {
-    [[ "$0" == "-zsh" ]] && echo "$@" || printf "%s" "$@"
+    [[ "$0" == "-zsh" ]] && echo "$@" || printf "%b" "$@"
 }
 
 # Checks if a command already exists
@@ -89,6 +85,3 @@ function _echo {
 function command_exists {
     type "$1" &> /dev/null ;
 }
-
-export gaudi_brew
-export _echo

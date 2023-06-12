@@ -13,8 +13,9 @@ source "$SOURCE_LOCATION/bin/colors.sh"
 source "$SOURCE_LOCATION/bin/configs.sh"
 source "$SOURCE_LOCATION/bin/installer.sh"
 
+printf "\033c"
+
 _echo "
-\033c
 
    ▄██████▄     ▄████████ ███    █▄  ████████▄   ▄█  
   ███    ███   ███    ███ ███    ███ ███   ▀███ ███  
@@ -25,7 +26,7 @@ _echo "
   ███    ███   ███    ███ ███    ███ ███   ▄███ ███  
   ████████▀    ███    █▀  ████████▀  ████████▀  █▀   
 
-${WHITE}Greetings $(whoami) .....${NC}\n
+Greetings $(whoami) .....\n
 
 Gaudi is a tool that allows you to install a set of predefined software lists! 
 Please make sure to follow the instructions carefully to avoid any uneeded installations.

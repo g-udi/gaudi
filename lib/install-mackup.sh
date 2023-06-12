@@ -21,7 +21,7 @@ ${YELLOW}Mackup makes setting up the environment easy and simple, saving time fo
     if [[ $(read_answer) =~ ^[yY]$ ]]; then
         if ! command_exists stow; then
             printf "\n\n%s\n" "We noticed that mackup is not installed on your machine .. Installing now ..."
-            brew install mackup
+            gaudi_brew install mackup
         else
             printf "\n${RED}%s$GREEN %s ${NC}\n\n" "mackup is installed" "✓"
         fi

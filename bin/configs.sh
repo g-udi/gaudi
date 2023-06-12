@@ -3,7 +3,7 @@
 # shellcheck disable=SC2181
 
 # alias to point to brew when its freshly installed
-function brew {
+function gaudi_brew {
     if command_exists brew; then
         brew "$@"
     else
@@ -40,7 +40,7 @@ function read_answer {
         read -r -n 1 input
         ! [[ $input =~ ^[$options]$ ]] && printf "\n${RED}%s ${NC}%s " "[ERROR]" "Please enter a valid answer [yY|nN]" >&2 && unset input
     done
-    [[ -n $input ]] && echo -e "\n" >&2 && echo "$input"
+    [[ -n $input ]] && printf "\n" >&2 && echo "$input"
 }
 
 function read_email {
@@ -50,7 +50,7 @@ function read_email {
         read -r input
         ! [[ $input =~ $EMAIL_REGEX ]] && printf "\n${RED}%s ${NC}%s " "[ERROR]" "Please enter a valid e-mail [yY|nN]" >&2 && unset input
     done
-    [[ -n $input ]] && echo -e "\n" >&2 && echo "$input"
+    [[ -n $input ]] && printf "\n" >&2 && echo "$input"
 }
 
 function read_git_url {
@@ -62,7 +62,7 @@ function read_git_url {
             printf "\n${RED}%s ${NC}%s ${YELLOW}%s ${NC}" "[ERROR]" "Unable to clone the repo in: $input" ">>> Please enter a new url:" >&2 && unset input
         fi
     done
-    [[ -n $input ]] && echo -e "\n" >&2 && echo "$input"
+    [[ -n $input ]] && printf "\n" >&2 && echo "$input"
 }
 
 # Gets the current shell type e.g., bash or zsh
@@ -80,7 +80,7 @@ function get_shell_type {
 
 # Adapts echo to see if we can use the -e for bash or not for zsh
 function _echo {
-    [[ "$0" == "-zsh" ]] && echo "$@" || echo -e "$@"
+    [[ "$0" == "-zsh" ]] && echo "$@" || printf "%s" "$@"
 }
 
 # Checks if a command already exists
@@ -90,4 +90,4 @@ function command_exists {
     type "$1" &> /dev/null ;
 }
 
-export brew
+export gaudi_brew

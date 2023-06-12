@@ -3,7 +3,7 @@
 # shellcheck disable=SC1091
 
 # Getting the operating system of the machine
-get_os () {
+function get_os () {
     case $(uname) in
     Linux )
         command -v yum && { export OS=centos; return; }

@@ -23,7 +23,7 @@ function installSoftwareList {
         fi
         softwareDescription="${listItem##*::}"
         if [[ $isWithPrompt = "true" ]]; then
-            printf "\n%s${MAGENTA} %s\n${YELLOW}%s ${NC}%s${GREEN}%s${NC} " "👾 Installing" "$software" "Description:" "$softwareDescription" "Would you like to install this? [Y/N] "
+            printf "\n%s${MAGENTA} %s\n${YELLOW}%s ${NC}%s${GREEN}%s${NC} " "👾 Installing" "$software" "Description:" "$softwareDescription" " | Would you like to install this? [Y/N] "
             read -r -n 1 REPLY
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 ${installCommand} "${software}"

@@ -39,15 +39,15 @@ function installSoftwareList {
 # e.g., brew_install_or_upgrade recipe
 #   <String> Recipe: The recipe name we wish to install or upgrade
 function brew_install_or_upgrade {
-  if gaudi_brew ls --versions "$1" >/dev/null; then
-    if (gaudi_brew outdated | grep "$1" > /dev/null); then 
+  if _brew ls --versions "$1" >/dev/null; then
+    if (_brew outdated | grep "$1" > /dev/null); then 
       echo "Upgrading already installed package $1 ..."
-      gaudi_brew upgrade "$1"
+      _brew upgrade "$1"
     else 
       echo "Latest $1 is already installed"
     fi
   else
-    gaudi_brew install "$1"
+    _brew install "$1"
   fi
 }
 

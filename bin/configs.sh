@@ -91,3 +91,4 @@ function command_exists {
 }
 
 export gaudi_brew
+export _echo

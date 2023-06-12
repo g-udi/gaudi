@@ -13,7 +13,7 @@ else
     printf "${RED}%s$GREEN %s ${NC}" "brew is installed" "✓"
 fi
 
-if ! command_exists mas; then
+if ! command_exists _mas; then
     printf "\n%s\n" "Installing mas is highly recommended .. sorry it is not up to you to decide ;)"
     brew install mas
 else

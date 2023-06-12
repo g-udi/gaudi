@@ -6,7 +6,7 @@ source "$SOURCE_LOCATION/lib/${OS}/config-sudo.sh"
 
 printf "\nWe need to prepare your machine by install some required software\n\n"
 
-if ! command_exists brew; then
+if ! command_exists gaudi_brew; then
     printf "\n%s\n" "We noticed that brew is not installed on your machine .. Installing now ...";
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 else

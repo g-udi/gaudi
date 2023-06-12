@@ -26,7 +26,7 @@ _echo "
   ███    ███   ███    ███ ███    ███ ███   ▄███ ███  
   ████████▀    ███    █▀  ████████▀  ████████▀  █▀   
 
-Greetings $(whoami) .....\n
+Greetings $(whoami) .....
 
 Gaudi is a tool that allows you to install a set of predefined software lists! 
 Please make sure to follow the instructions carefully to avoid any uneeded installations.

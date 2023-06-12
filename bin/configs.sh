@@ -87,7 +87,6 @@ function _echo {
 # e.g., command_exists brew
 #   <Function> command: The command we want to check if it exists
 function command_exists {
-    # [[ "$1" == "brew" ]] && return 0;
     type "$1" &> /dev/null ;
 }
 

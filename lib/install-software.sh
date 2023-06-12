@@ -3,27 +3,30 @@
 # shellcheck disable=SC2044,SC1090,SC2002,SC2125,SC1087
 
 softwareLists=(
-    "debian|apt-get::sudo apt-get -y --force-yes install"
-    "*|brew::brew_install_or_upgrade"
-    "osx|mas::mas install"
-    "osx|cask::brew install --cask"
-    "*|npm::npm install -g"
-    "*|pip::pip3 install --upgrade --user --ignore-installed six"
-    "*|go::go get"
-    "*|gem::gem_install_or_update install"
+    "debian|apt-get>>apt-get::sudo apt-get -y --force-yes install"
+    "*|brew>>brew::brew_install_or_upgrade"
+    "osx|mas>>mas::mas install"
+    "osx|brew>>cask::brew install --cask"
+    "*|npm>>npm::npm install -g"
+    "*|pip>>pip::pip3 install --upgrade --user --ignore-installed six"
+    "*|gp>>go::go get"
+    "*|gem>>gem::gem_install_or_update install"
 )
 
 for item in "${softwareLists[@]}"; do
     
     operatingSystem="${item%%|*}"
+    installCommand="${item%%>>*}"
     list="${item%%::*}"
     listType="${list#*|}"
     listCommand="${item#*::}"
     
     if [[ $operatingSystem = "$OS" || $operatingSystem = "*" ]]; then
 
-        if command_exists "$listType"; then
-
+        echo "Checking list type: ${installCommand%%|*}"
+        if command_exists "${installCommand%%|*}"; then
+            
+            echo "list type: ${installCommand%%|*} exist 👍"
             # We need now to check if we need to run any pre hooks
             find "$GAUDI_TEMPLATES_LOCATION" -type f -iname "pre.${listType}*.hooks.sh" | while read -r PRE_HOOK; do
                 . "$PRE_HOOK"
@@ -58,7 +61,7 @@ for item in "${softwareLists[@]}"; do
                 . "$POST_HOOK"
             done
         fi
-
+        echo "list type: ${installCommand%%|*} does not exist 👎"
     fi
 
 done

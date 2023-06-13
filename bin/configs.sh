@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# shellcheck disable=SC2181
+# shellcheck disable=SC2181,SC2120
 
 # alias to point to brew when its freshly installed
-function _brew {
-    /opt/homebrew/bin/brew "$@"
+function brew {
+    chip_type=$(sysctl -n machdep.cpu.brand_string)
+    if [[ "$chip_type" == *Intel* ]]; then 
+        /usr/local/bin/brew "$@"
+    else /opt/homebrew/bin/brew "$@"
+    fi
 }
 
 # alias to point to brew when its freshly installed
@@ -52,7 +56,7 @@ function read_email {
 function read_git_url {
     input=
     while [[ $input = "" ]]; do
-        read -r input
+        read -e -r input
         GIT_ASKPASS=true git ls-remote "$input" > /dev/null 2>&1
         if [ "$?" -ne 0 ]; then
             printf "\n${RED}%s ${NC}%s ${YELLOW}%s ${NC}" "[ERROR]" "Unable to clone the repo in: $input" ">>> Please enter a new url:" >&2 && unset input

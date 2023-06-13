@@ -31,7 +31,7 @@ printf  "Would you like to install your dotfiles wtih stow? "
 if [[ $(read_answer) =~ ^[yY]$ ]]; then
     if ! command_exists stow; then
         printf "\n\n%s\n" "We noticed that stow is not installed on your machine .. Installing now ..."
-        _brew install stow
+        brew install stow
     else
         printf "\n${RED}%s$GREEN %s ${NC}\n\n" "stow is installed" "✓"
     fi

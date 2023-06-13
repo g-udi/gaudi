@@ -3,6 +3,6 @@
 
 printf "\n\n${RED}%s${NC}\n\n" "Cleaning up now after installation ....."
 
-_brew cleanup -s
-_brew cask cleanup
-_brew prune
+brew cleanup -s
+brew cask cleanup
+brew prune

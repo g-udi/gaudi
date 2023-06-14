@@ -13,8 +13,11 @@ function brew {
 
 # alias to point to brew when its freshly installed
 function _mas {
-    brew_location=$(which brew) > /dev/null
-    "${brew_location%"brew"}mas" "$@"
+    chip_type=$(sysctl -n machdep.cpu.brand_string)
+    if [[ "$chip_type" == *Intel* ]]; then 
+        /usr/local/bin/mas "$@"
+    else /opt/homebrew/bin/mas "$@"
+    fi
 }
 
 # Get the operating system version of the machine 

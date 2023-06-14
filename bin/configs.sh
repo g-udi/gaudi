@@ -11,12 +11,21 @@ function brew {
     fi
 }
 
-# alias to point to brew when its freshly installed
-function _mas {
+# alias to point to mas when its freshly installed
+function mas {
     chip_type=$(sysctl -n machdep.cpu.brand_string)
     if [[ "$chip_type" == *Intel* ]]; then 
         /usr/local/bin/mas "$@"
     else /opt/homebrew/bin/mas "$@"
+    fi
+}
+
+# alias to point to npm when its freshly installed
+function npm {
+    chip_type=$(sysctl -n machdep.cpu.brand_string)
+    if [[ "$chip_type" == *Intel* ]]; then 
+        /usr/local/bin/npm "$@"
+    else /opt/homebrew/bin/npm "$@"
     fi
 }
 

@@ -21,7 +21,7 @@ for item in "${softwareLists[@]}"; do
     listCommand="${item#*::}"
     
     if [[ $operatingSystem = "$OS" || $operatingSystem = "*" ]]; then
-
+    
         # We need now to check if we need to run any pre hooks
         find "$GAUDI_TEMPLATES_LOCATION" -type f -iname "pre.${listType}*.hooks.sh" | while read -r PRE_HOOK; do
             . "$PRE_HOOK"

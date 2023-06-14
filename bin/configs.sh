@@ -13,7 +13,8 @@ function brew {
 
 # alias to point to brew when its freshly installed
 function _mas {
-    "$(brew)"/mas "$@"
+    brew_location=$(which brew) > /dev/null
+    "${brew_location%"brew"}mas" "$@"
 }
 
 # Get the operating system version of the machine 

@@ -64,4 +64,7 @@ source "${SOURCE_LOCATION}/lib/install-mackup.sh"
 # Install extras
 source "${SOURCE_LOCATION}/lib/install-extras.sh"
 
+# Install configurations
+source "${SOURCE_LOCATION}/lib/${OS}/configure.sh"
+
 _echo "Setting up your machine with gaudi is finished! Enjoy"

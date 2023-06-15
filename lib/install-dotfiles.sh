@@ -37,7 +37,7 @@ if [[ $(read_answer) =~ ^[yY]$ ]]; then
     fi
 fi
 
-if [[ -d "$GAUDI_TEMPLATES_LOCATION/templates/dotfiles" ]]; then
+if [[ -d "$GAUDI_TEMPLATES_LOCATION/dotfiles" ]]; then
     for dotfile in "$GAUDI_TEMPLATES_LOCATION"/templates/dotfiles/* ; do
             file=$(basename "$dotfile")
             printf "${MAGENTA}%s ${WHITE}%s ${GREEN}%s ${NC}\n" "[STOW]" "Linking $dotfile" "✓"

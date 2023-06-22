@@ -11,6 +11,15 @@ function brew {
     fi
 }
 
+# alias to point to stow when its freshly installed
+function stow {
+    chip_type=$(sysctl -n machdep.cpu.brand_string)
+    if [[ "$chip_type" == *Intel* ]]; then 
+        /usr/local/bin/stow "$@"
+    else /opt/homebrew/bin/stow "$@"
+    fi
+}
+
 # alias to point to mas when its freshly installed
 function mas {
     chip_type=$(sysctl -n machdep.cpu.brand_string)

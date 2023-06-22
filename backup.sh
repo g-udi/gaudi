@@ -110,7 +110,7 @@ function backup_mas {
     echo ""
 }
 
-softwareList="cask"
+softwareList="brew cask mas npm pip"
 software=($softwareList)
 
 # Create the backup directory if doesn't exist silently

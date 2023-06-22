@@ -35,12 +35,12 @@ if [[ $(read_answer) =~ ^[yY]$ ]]; then
     else
         printf "\n${RED}%s$GREEN %s ${NC}\n\n" "stow is installed" "✓"
     fi
-fi
 
-if [[ -d "$GAUDI_TEMPLATES_LOCATION/dotfiles" ]]; then
-    for dotfile in "$GAUDI_TEMPLATES_LOCATION"/dotfiles/* ; do
-            file=$(basename "$dotfile")
-            printf "${MAGENTA}%s ${WHITE}%s ${GREEN}%s ${NC}\n" "[STOW]" "Linking $dotfile" "✓"
-            stow "$file" -d "$GAUDI_TEMPLATES_LOCATION"/templates/dotfiles/ -t "$HOME"
-    done
+    if [[ -d "$GAUDI_TEMPLATES_LOCATION/dotfiles" ]]; then
+        for dotfile in "$GAUDI_TEMPLATES_LOCATION"/dotfiles/* ; do
+                file=$(basename "$dotfile")
+                printf "${MAGENTA}%s ${WHITE}%s ${GREEN}%s ${NC}\n" "[STOW]" "Linking $dotfile" "✓"
+                stow "$file" -d "$GAUDI_TEMPLATES_LOCATION"/dotfiles/ -t "$HOME"
+        done
+    fi
 fi

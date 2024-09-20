@@ -2,42 +2,45 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2154
 
-# Install software from a software list definition 
-# e.g., installSoftwareList "brew install" "false" "${brewList[@]}"
-#   <Function> command: The install command to execute on an install item
-#   <Boolean> withPrompt: Indicate if we need to prompt the user to accept the installation of each item
-#   <Array> softwareList: The software list reference
+
+# @function installSoftwareList
+# @description Install software from a software list definition
+# @param <Function> command: The install command to execute on an install item
+# @param <Boolean> withPrompt: Indicate if we need to prompt the user to accept the installation of each item
+# @param <Array> softwareList: The software list reference
+# @example installSoftwareList "brew install" "false" "${brewList[@]}"
 function installSoftwareList {
-    echo ""
-    installCommand=$1 && shift
-    isWithPrompt=$1 && shift
+    local installCommand=$1 isWithPrompt=$2
+    shift 2
     local softwareList=("$@")
 
     for item in "${softwareList[@]}"; do
-        if [[ $installCommand = *"mas"* ]]; then
+        local software softwareDescription
+        if [[ $installCommand == *"mas"* ]]; then
             software="${item%%::*}"
-            listItem="${item#*::}"
+            softwareDescription="${item#*::}"
         else
-            listItem=$item
-            software="${listItem%%::*}"
+            software="${item%%::*}"
+            softwareDescription="${item##*::}"
         fi
-        softwareDescription="${listItem##*::}"
-        if [[ $isWithPrompt = "true" ]]; then
-            printf "\n%s${MAGENTA} %s\n${YELLOW}%s ${NC}%s${GREEN}%s${NC} " "👾 Installing" "$software" "Description:" "$softwareDescription" " | Would you like to install this? [Y/N] "
+
+        printf "\n%s${MAGENTA} %s\n${YELLOW}%s ${NC}%s" "👾 Installing" "$software" "Description:" "$softwareDescription"
+        
+        if [[ $isWithPrompt == "true" ]]; then
+            printf "${GREEN}%s${NC}" " | Would you like to install this? [Y/N] "
             read -r -n 1 REPLY
-            if [[ $REPLY =~ ^[Yy]$ ]]; then
-                ${installCommand} "${software}"
-            fi;
+            echo
+            [[ $REPLY =~ ^[Yy]$ ]] && ${installCommand} "${software}"
         else
-            printf "\n%s${MAGENTA} %s\n${YELLOW}%s ${NC}%s\n" "👾 Installing" "$software" "Description:"  "$softwareDescription"
+            echo
             ${installCommand} "${software}"
         fi
     done
 }
 
-# Install or update a brew recipe
-# e.g., brew_install_or_upgrade recipe
-#   <String> Recipe: The recipe name we wish to install or upgrade
+# @function brew_install_or_upgrade
+# @description Install or update a brew recipe
+# @param <String> Recipe: The recipe name we wish to install or upgrade
 function brew_install_or_upgrade {
   if brew ls --versions "$1" >/dev/null; then
     if (brew outdated | grep "$1" > /dev/null); then 
@@ -51,10 +54,10 @@ function brew_install_or_upgrade {
   fi
 }
 
-# Install or update a ruby gem
-# e.g., gem_install_or_update gem
-#   <String> Gem: The gem name we wish to install or upgrade
-gem_install_or_update() {
+# @function gem_install_or_update
+# @description Install or update a ruby gem
+# @param <String> Gem: The gem name we wish to install or upgrade
+function gem_install_or_update {
   if gem list "$1" --installed > /dev/null; then
     gem update "$@"
   else

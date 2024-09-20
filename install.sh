@@ -24,7 +24,7 @@ fi
 if [ -d "$GAUDI" ]; then
     printf "%s\n" "You already have gaudi installed.."
     printf "%s\n" "Setting up a fresh installation of gaudi 🌈"
-    rm -rf $GAUDI
+    rm -rf "$GAUDI"
 fi
 
 # Run the installation pre-requisites based on each operating system defined in gaudi

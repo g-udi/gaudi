@@ -2,7 +2,9 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2181,SC2120
 
-# alias to point to brew when its freshly installed
+
+# @function brew
+# @description alias to point to brew when its freshly installed
 function brew {
     chip_type=$(sysctl -n machdep.cpu.brand_string)
     if [[ "$chip_type" == *Intel* ]]; then 
@@ -11,7 +13,8 @@ function brew {
     fi
 }
 
-# alias to point to mas when its freshly installed
+# @function mas
+# @description alias to point to mas when its freshly installed
 function mas {
     chip_type=$(sysctl -n machdep.cpu.brand_string)
     if [[ "$chip_type" == *Intel* ]]; then 
@@ -20,7 +23,8 @@ function mas {
     fi
 }
 
-# alias to point to npm when its freshly installed
+# @function npm
+# @description alias to point to npm when its freshly installed
 function npm {
     chip_type=$(sysctl -n machdep.cpu.brand_string)
     if [[ "$chip_type" == *Intel* ]]; then 
@@ -29,7 +33,7 @@ function npm {
     fi
 }
 
-# Get the operating system version of the machine 
+# @function get_os
 function get_os {
     printf "\n%s\n" "[INFO] Getting bash version ...."
     bash --version
@@ -46,6 +50,7 @@ function get_os {
     esac    
 }
 
+# @function read_answer
 function read_answer {
     options=${1:-yYnN}
     input=
@@ -56,6 +61,8 @@ function read_answer {
     [[ -n $input ]] && printf "\n" >&2 && echo "$input"
 }
 
+# @function read_email
+# @description reads the email from the user
 function read_email {
     local EMAIL_REGEX="^[a-z0-9!#\$%&'*+/=?^_\`{|}~-]+(\.[a-z0-9!#$%&'*+/=?^_\`{|}~-]+)*@([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9]([a-z0-9-]*[a-z0-9])?\$"
     input=
@@ -66,6 +73,8 @@ function read_email {
     [[ -n $input ]] && printf "\n" >&2 && echo "$input"
 }
 
+# @function read_git_url
+# @description reads the git url from the user
 function read_git_url {
     input=
     while [[ $input = "" ]]; do
@@ -78,8 +87,8 @@ function read_git_url {
     [[ -n $input ]] && printf "\n" >&2 && echo "$input"
 }
 
-# Gets the current shell type e.g., bash or zsh
-# e.g., get_shell_type
+# @function get_shell_type
+# @description gets the current shell type e.g., bash or zsh
 function get_shell_type {
     if test -n "$ZSH_VERSION"; then
         export GAUDI_SHELL="zsh"
@@ -91,14 +100,15 @@ function get_shell_type {
 }
 
 
-# Adapts echo to see if we can use the -e for bash or not for zsh
+# @function _echo
+# @description adapts echo to see if we can use the -e for bash or not for zsh
 function _echo {
     [[ "$0" == "-zsh" ]] && echo "$@" || printf "%b" "$@"
 }
 
-# Checks if a command already exists
-# e.g., command_exists brew
-#   <Function> command: The command we want to check if it exists
+# @function command_exists
+# @description checks if a command already exists
+# @param command: The command we want to check if it exists
 function command_exists {
     type "$1" &> /dev/null ;
 }

@@ -4,25 +4,17 @@
 
 source "$SOURCE_LOCATION/lib/${OS}/config-sudo.sh"
 
-printf "\nWe need to prepare your machine by install some required software\n\n"
+echo -e "\nPreparing your machine by installing required software\n"
 
-if ! command_exists brew; then
-    printf "\n%s\n" "We noticed that brew is not installed on your machine .. Installing now ...";
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-else
-    printf "${RED}%s$GREEN %s ${NC}" "brew is installed" "✓"
-fi
+install_if_missing() {
+    if ! command -v "$1" &> /dev/null; then
+        echo "Installing $1..."
+        $2
+    else
+        echo -e "${RED}$1 is installed${GREEN} ✓${NC}"
+    fi
+}
 
-if ! command_exists mas; then
-    printf "\n%s\n" "Installing mas is highly recommended .. sorry it is not up to you to decide ;)"
-    brew install mas
-else
-    printf "${RED}%s$GREEN %s ${NC}" "mas is installed" "✓"
-fi
-
-if ! command_exists git; then
-    printf "\n%s\n" "We noticed that git is not installed on your machine .. Installing now ...";
-    brew install git
-else
-    printf "${RED}%s$GREEN %s ${NC}\n\n" "git is installed" "✓"
-fi
+install_if_missing brew '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+install_if_missing mas 'brew install mas'
+install_if_missing git 'brew install git'

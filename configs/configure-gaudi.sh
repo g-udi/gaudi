@@ -1,36 +1,20 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 
-declare GAUDI_TEMPLATES_LOCATION
-
 GAUDI_TEMPLATES_LOCATION="${HOME}/.gaudi/templates/"
 
-function _clone-gaudi-templates {
-
-    _echo "
-The next step will prompt you for the url of gaudi templates (lists, hooks, templates, etc.)...
-
-${MAGENTA}Example templates can be found at https://github.com/g-udi/gaudi-templates${NC}
-
-${YELLOW}Please enter the url of the templates git repo${NC}
-"
-
-    printf ">> "
-    GAUDI_TEMPLATE_URL=$(read_git_url);
+_clone-gaudi-templates() {
+    echo -e "\nEnter the url of gaudi templates (e.g., https://github.com/g-udi/gaudi-templates):"
+    read -r GAUDI_TEMPLATE_URL
     git clone "$GAUDI_TEMPLATE_URL" "$GAUDI_TEMPLATES_LOCATION"
-
 }
 
 if [[ -d $GAUDI_TEMPLATES_LOCATION ]]; then
-    printf "${RED}%s${NC}\n\n%s" "We noticed that there already gaudi templates in $GAUDI_TEMPLATES_LOCATION" "Would you like to overwrite those? [Y/N] "
-    if [[ $(read_answer) =~ ^[yY]$ ]]; then
-        rm -rf "$GAUDI_TEMPLATES_LOCATION"
-        _clone-gaudi-templates
-    fi;
+    read -rp "Gaudi templates already exist in $GAUDI_TEMPLATES_LOCATION. Overwrite? [Y/N] " REPLY
+    [[ $REPLY =~ ^[yY]$ ]] && rm -rf "$GAUDI_TEMPLATES_LOCATION" && _clone-gaudi-templates
 else
     mkdir -p "$GAUDI_TEMPLATES_LOCATION"
     _clone-gaudi-templates
 fi
-
 
 export GAUDI_TEMPLATES_LOCATION

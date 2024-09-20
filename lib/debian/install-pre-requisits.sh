@@ -1,32 +1,25 @@
 #!/usr/bin/env bash
-# shellcheck shell=bash
-# shellcheck disable=2016
+# shellcheck shell=bash disable=2016
 
-printf "\n%s\n\n" "We need to prepare your machine by install some required software"
+echo -e "\nPreparing your machine by installing required software\n"
 
-# Updating apt to refresh repos
-sudo apt-get update
-sudo apt-get upgrade
+sudo apt-get update && sudo apt-get upgrade -y
 
 # Install requirements without prompt
-sudo apt-get install build-essential
-sudo apt-get install libssl-dev
-sudo apt-get install apt-transport-https
-sudo apt-get curl
-sudo apt-get file
+sudo apt-get install -y build-essential libssl-dev apt-transport-https curl file
 
-if ! command_exists git; then
-    printf "%s\n" "We noticed that git is not installed on your machine .. Installing now ...";
-    sudo apt-get install git-all
-fi
+install_if_missing() {
+    if ! command -v "$1" >/dev/null 2>&1; then
+        echo "Installing $1..."
+        sudo apt-get install -y "$2"
+    fi
+}
 
-if ! command_exists brew; then
-    printf "%s\n" "We noticed that brew is not installed on your machine .. Installing now ...";
-    
-    # Install Homebrew .. a must !
-    bash -c "$(curl -fsSL https://raw.githubusercontent.com/Linuxbrew/install/master/install.sh)"
-    test -d ~/.linuxbrew && PATH="$HOME/.linuxbrew/bin:$HOME/.linuxbrew/sbin:$PATH"
-    test -d /home/linuxbrew/.linuxbrew && PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH"
-    test -r ~/.bash_profile && echo "export PATH='$(brew --prefix)/bin:$(brew --prefix)/sbin'":'"$PATH"' >>~/.bash_profile
-    echo "export PATH='$(brew --prefix)/bin:$(brew --prefix)/sbin'":'"$PATH"' >>~/.profile
+install_if_missing git git-all
+install_if_missing brew "$(curl -fsSL https://raw.githubusercontent.com/Linuxbrew/install/master/install.sh)"
+
+if command -v brew >/dev/null 2>&1; then
+    test -d ~/.linuxbrew && eval "$(~/.linuxbrew/bin/brew shellenv)"
+    test -d /home/linuxbrew/.linuxbrew && eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+    echo "eval \"\$($(brew --prefix)/bin/brew shellenv)\"" >> ~/.profile
 fi

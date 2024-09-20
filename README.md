@@ -1,5 +1,11 @@
 # Gaudi
 
+### _Gaudi: Craft Your Perfect Dev Environment_
+
+ 🏗️ Automate your machine setup
+ 🎨 Customize with templates
+ 🚀 From fresh install to fully equipped in minutes
+
 As a developer or tech enthusiast, you’ve probably experienced the frustration of setting up a new machine. Whether it’s for a fresh install of the operating system or a brand-new device, the process of reinstalling your go-to applications, configuring development environments, and getting everything to run smoothly can feel like a tedious chore. I know this pain all too well. That’s why I created [**Gaudi**](https://github.com/g-udi/gaudi)—a tool designed to make setting up a new machine efficient, consistent, and hassle-free.
 
 # The Problem: Time-Consuming Setup

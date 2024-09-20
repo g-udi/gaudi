@@ -22,6 +22,8 @@ The main motivation behind gaudi is:
 
 > Note: Gaudi has been designed to serve both Linux and OSX but have been optimised and tested on OSX
 
+![2024-09-20 12 07 54](https://github.com/user-attachments/assets/96a8dafb-d5e6-4e09-9476-b90a044976a6)
+
 # Installation
 
 gaudi is installed by running the following commands in your terminal. You can install this via the command-line with either `curl` or `wget`, whichever is installed on your machine.

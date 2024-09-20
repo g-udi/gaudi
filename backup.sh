@@ -2,6 +2,8 @@
 # shellcheck shell=bash
 # shellcheck disable=SC1036,SC1056,SC1072,SC1073,SC1009
 
+source ./bin/loaders.sh
+
 # @function ProgressBar
 # @description Show a progress bar animation by rendering a progress bar between a start and end value
 function ProgressBar {
@@ -110,7 +112,7 @@ function backup_mas {
     echo ""
 }
 
-softwareList="cask"
+softwareList="pip mas npm cask brew"
 software=($softwareList)
 
 # Create the backup directory if doesn't exist silently
@@ -118,7 +120,7 @@ mkdir -p backup
 
 printf "\n%s\n" "Backing up the machine list of installed $softwareList software"
 for _software in "${software[@]}"; do
-    printf "\n%s\n" "🗄️  Backing-up ${_software}"
+    printf "\n%s\n" "Backing-up ${_software}"
     _list_name="./backup/default.$_software.list.sh"
     touch $_list_name
     cat >$_list_name <<EOL

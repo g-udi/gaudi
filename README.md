@@ -136,3 +136,13 @@ Combining hooks with template based installation allows for a high level of cont
 An example templates are located in the [gaudi-templates](https://github.com/g-udi/gaudi-templates) repository.
 
 They are basically shell scripts that install/configure/setup/... whatever you want in your machine.
+
+# Backup: Generate your list of installed software automatically
+
+You can generate a list of your installed software by running the following command:
+
+```sh
+gaudi backup
+```
+
+This will generate a list of your installed software and save it to the `backup` folder. You can edit the set of software to be installed by editing the `softwareLists` array in the `install.sh` file.

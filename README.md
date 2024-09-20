@@ -55,13 +55,6 @@ gaudi is a bash script that automates the installation and setup of software on 
  - **Install extras**: Install the extras from the template files specified in the templates repository
  - **Configure the machine**: Configure the machine to your liking be it OSX or Debian specific settings
 
-
-- [Configure touchID for sudo](https://github.com/g-udi/gaudi/blob/master/lib/osx/config-sudo.sh)
-- Configure SSH
-- Suggest installing shell helpers like [gaudi-bash](https://github.com/g-udi/gaudi-bash) or [oh-my-zsh](https://ohmyz.sh/)
-- Install the software list from the template files specified in the templates repository
-
-
 # Behind the Scenes
 
 ## Folder and File Structure

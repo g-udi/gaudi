@@ -1,17 +1,27 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 
-echo "Setting up SSH Installation..."
-read -rp "Have you configured SSH? [Y/N] " configured_ssh
+gaudi::log "Checking SSH configuration"
 
-if [[ $configured_ssh =~ ^[Nn]$ ]]; then
-    read -rp "Email address for SSH configuration: " EMAIL
-    
-    ssh-keygen -t rsa -b 4096 -C "$EMAIL"
-    eval "$(ssh-agent -s)"
-    ssh-add ~/.ssh/id_rsa
-
-    echo -e "\n${RED}Please add your id_rsa.pub key [below] to any service that requires it (e.g., Github)${NC}\n"
-    cat ~/.ssh/id_rsa.pub
-    echo
+if [[ -f "$HOME/.ssh/id_ed25519.pub" || -f "$HOME/.ssh/id_rsa.pub" ]]; then
+    gaudi::success "SSH key already exists"
+    return 0
 fi
+
+gaudi::confirm "No SSH public key found. Generate an ed25519 key now?" "y" || return 0
+
+printf "Email address for SSH key: "
+EMAIL="$(read_email)"
+
+mkdir -p "$HOME/.ssh"
+chmod 700 "$HOME/.ssh"
+ssh-keygen -t ed25519 -C "$EMAIL" -f "$HOME/.ssh/id_ed25519"
+
+if gaudi::command_exists ssh-agent && gaudi::command_exists ssh-add; then
+    eval "$(ssh-agent -s)" >/dev/null
+    ssh-add "$HOME/.ssh/id_ed25519" >/dev/null 2>&1 || true
+fi
+
+printf "\n%b\n" "${YELLOW:-}Add this public key to GitHub or any private Git host:${NC:-}"
+cat "$HOME/.ssh/id_ed25519.pub"
+printf "\n"

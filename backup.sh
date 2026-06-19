@@ -1,135 +1,161 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# shellcheck disable=SC1036,SC1056,SC1072,SC1073,SC1009
+set -euo pipefail
 
-source ./bin/loaders.sh
+SOURCE_LOCATION="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+# shellcheck source=/dev/null
+source "$SOURCE_LOCATION/bin/colors.sh"
+# shellcheck source=/dev/null
+source "$SOURCE_LOCATION/bin/helpers.sh"
+# shellcheck source=/dev/null
+source "$SOURCE_LOCATION/bin/commands.sh"
 
-# @function ProgressBar
-# @description Show a progress bar animation by rendering a progress bar between a start and end value
-function ProgressBar {
-    let _progress=(${1}*100/${2}*100)/100
-    let _done=(${_progress}*4)/10
-    let _left=40-$_done
+BACKUP_DIR="${1:-$PWD/backup}"
+mkdir -p "$BACKUP_DIR"
 
-    _fill=$(printf "%${_done}s")
-    _empty=$(printf "%${_left}s")
+write_header() {
+    local file="$1"
+    local name="$2"
+    local list_name="$3"
 
-    printf "\rProgress : [${_fill// /#}${_empty// /-}] ${_progress}%%"
+    cat > "$file" <<EOF
+# @Name: $name
+# @List: $list_name
+export $list_name=(
 
+EOF
 }
 
-# @function backup_npm
-# @description Backup the list of globally installed npm packages
-function backup_npm {
-    _start=1
-    _end=$(npm list -g --depth 0 -p 2>/dev/null | sed -e '1d' | wc -l)
-     npm list -g --depth 0 -p -l 2>/dev/null | sed -e '1d' | \
-    while read i
-        do
-            app="${i#*:}"
-            app_info=$(npm view "$app" 2>/dev/null | sed -n '3 p')
-            echo "\"$app::$app_info\"" >> backup/default.npm.list.sh
-            ProgressBar ${_start} ${_end}
-            ((_start=_start+1))
-    done
-    echo ""
+write_footer() {
+    printf ")\n" >> "$1"
 }
 
-# @function backup_pip
-# @description Backup the list of globally installed pip packages
-function backup_pip {
-    _start=1
-    _end=$(pip list --user 2>/dev/null | sed -e '1,2d' | wc -l)
-    pip list --user 2>/dev/null | sed -e '1,2d' | \
-    while read i
-        do
-            _app=($i)
-            app=${_app[0]}
-            _app_info=$(pip show "$app" 2>/dev/null | sed -n '3 p')
-            app_info=${_app_info#"Summary: "}
-            echo "\"$app::$app_info\"" >> backup/default.pip.list.sh
-            ProgressBar ${_start} ${_end}
-            ((_start=_start+1))
-    done
-    echo ""
+append_item() {
+    local file="$1"
+    local package_name="$2"
+    local description="${3:-}"
+    local safe_package=""
+    local safe_description=""
+
+    safe_package="${package_name//\\/\\\\}"
+    safe_package="${safe_package//\"/\\\"}"
+    safe_description="${description//\\/\\\\}"
+    safe_description="${safe_description//\"/\\\"}"
+
+    printf '  "%s::%s"\n' "$safe_package" "$safe_description" >> "$file"
 }
 
-# @function backup_brew
-# @description Backup the list of brew formulaes
-function backup_brew {
-    _start=1
-    _end=$(brew leaves | wc -l)
-    brew leaves | sed | \
-    while read i
-        do
-            app=$i
-            app_info=$(brew info "$app" 2>/dev/null | sed -n '2 p')
-            echo "\"$app::$app_info\"" >> backup/default.brew.list.sh
-            ProgressBar ${_start} ${_end}
-            ((_start=_start+1))
-    done
-    echo ""
+backup_brew() {
+    local file="$BACKUP_DIR/default.brew.list.sh"
+    local package_name=""
+
+    write_header "$file" "Default" "brewList"
+    if gaudi::command_exists brew; then
+        while IFS= read -r package_name; do
+            [[ -n "$package_name" ]] || continue
+            append_item "$file" "$package_name" "$(brew desc --eval-all "$package_name" 2>/dev/null | sed 's/^[^:]*: //')"
+        done < <(brew leaves 2>/dev/null)
+    else
+        gaudi::warn "Skipping Homebrew backup: brew is not installed"
+    fi
+    write_footer "$file"
 }
 
-# @function backup_casks
-# @description Backup the list of brew cask software
-function backup_cask {
-    _start=1
-    _end=$(brew list --casks | wc -l)
-    brew list --casks | sed | \
-    while read i
-        do
-            app=$i
-            app_description_line=$(brew info --cask "$app" 2>/dev/null | awk '/^==> Description/ { print NR;}')
-            ((app_info_line=app_description_line+1))
-            app_info=$(brew info --cask "$app" 2>/dev/null | sed -n "$app_info_line p")
-            if [ "$app_info" = "None" ]; then
-                echo "\"$app::\"" >> backup/default.cask.list.sh
-            else
-                echo "\"$app::$app_info\"" >> backup/default.cask.list.sh
+backup_cask() {
+    local file="$BACKUP_DIR/default.cask.list.sh"
+    local package_name=""
+
+    write_header "$file" "Default" "caskList"
+    if gaudi::command_exists brew; then
+        while IFS= read -r package_name; do
+            [[ -n "$package_name" ]] || continue
+            append_item "$file" "$package_name" "$(brew info --cask "$package_name" 2>/dev/null | awk '/^==> Description/{getline; print; exit}')"
+        done < <(brew list --cask 2>/dev/null)
+    else
+        gaudi::warn "Skipping cask backup: brew is not installed"
+    fi
+    write_footer "$file"
+}
+
+backup_mas() {
+    local file="$BACKUP_DIR/default.mas.list.sh"
+    local app_id=""
+    local app_name=""
+
+    write_header "$file" "Default" "masList"
+    if gaudi::command_exists mas; then
+        while IFS= read -r app_id app_name; do
+            [[ -n "$app_id" ]] || continue
+            append_item "$file" "$app_id" "$app_name"
+        done < <(mas list 2>/dev/null)
+    else
+        gaudi::warn "Skipping Mac App Store backup: mas is not installed"
+    fi
+    write_footer "$file"
+}
+
+backup_npm() {
+    local file="$BACKUP_DIR/default.npm.list.sh"
+    local package_path=""
+    local package_name=""
+
+    write_header "$file" "Default" "npmList"
+    if gaudi::command_exists npm; then
+        while IFS= read -r package_path; do
+            [[ -n "$package_path" ]] || continue
+            package_name="${package_path##*/}"
+            if [[ "$(basename "$(dirname "$package_path")")" == @* ]]; then
+                package_name="$(basename "$(dirname "$package_path")")/$package_name"
             fi
-            ProgressBar ${_start} ${_end}
-            ((_start=_start+1))
-    done
-    echo ""
+            append_item "$file" "$package_name"
+        done < <(npm list -g --depth=0 --parseable 2>/dev/null | sed '1d')
+    else
+        gaudi::warn "Skipping npm backup: npm is not installed"
+    fi
+    write_footer "$file"
 }
 
-# @function backup_mas
-# @description Backup the list of mas software
-function backup_mas {
-    _start=1
-    _end=$(mas list | wc -l)
-    mas list | sed | \
-    while read i
-        do
-            _app=($i)
-            app=${_app[0]}
-            app_info=$(mas info "$app" 2>/dev/null | sed -n '1 p')
-            echo "\"$app::$app_info\"" >> ./backup/default.mas.list.sh
-            ProgressBar ${_start} ${_end}
-            ((_start=_start+1))
-    done
-    echo ""
+backup_pip() {
+    local file="$BACKUP_DIR/default.pip.list.sh"
+    local package_name=""
+
+    write_header "$file" "Default" "pipList"
+    if gaudi::command_exists python3; then
+        while IFS='=' read -r package_name _; do
+            [[ -n "$package_name" ]] || continue
+            append_item "$file" "$package_name"
+        done < <(python3 -m pip list --user --format=freeze 2>/dev/null || true)
+    else
+        gaudi::warn "Skipping pip backup: python3 is not installed"
+    fi
+    write_footer "$file"
 }
 
-softwareList="pip mas npm cask brew"
-software=($softwareList)
+backup_apt() {
+    local file="$BACKUP_DIR/default.apt-get.sh"
+    local package_name=""
 
-# Create the backup directory if doesn't exist silently
-mkdir -p backup
+    write_header "$file" "Default" "aptList"
+    if gaudi::command_exists dpkg-query; then
+        while IFS= read -r package_name; do
+            [[ -n "$package_name" ]] || continue
+            append_item "$file" "$package_name"
+        done < <(dpkg-query -W -f='${binary:Package}\n' 2>/dev/null)
+    fi
+    write_footer "$file"
+}
 
-printf "\n%s\n" "Backing up the machine list of installed $softwareList software"
-for _software in "${software[@]}"; do
-    printf "\n%s\n" "Backing-up ${_software}"
-    _list_name="./backup/default.$_software.list.sh"
-    touch $_list_name
-    cat >$_list_name <<EOL
-# @Name: Default
-# @List: ${_software}List
-export ${_software}List=(
+gaudi::log "Writing backup lists to $BACKUP_DIR"
 
-EOL
-    backup_function="backup_$_software"
-    $backup_function
-    echo ")"  >> $_list_name
-done;
+for manager in ${GAUDI_BACKUP_MANAGERS:-brew cask mas npm pip apt}; do
+    case "$manager" in
+        brew|cask|mas|npm|pip|apt)
+            "backup_$manager"
+            ;;
+        *)
+            gaudi::warn "Unknown backup manager: $manager"
+            ;;
+    esac
+done
+
+gaudi::success "Backup complete"

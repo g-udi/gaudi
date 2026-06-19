@@ -1,66 +1,84 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# shellcheck disable=SC2154
 
+gaudi::run_install_command() {
+    local install_command="$1"
+    local package_name="$2"
+    local -a command_parts=()
 
-# @function installSoftwareList
-# @description Install software from a software list definition
-# @param <Function> command: The install command to execute on an install item
-# @param <Boolean> withPrompt: Indicate if we need to prompt the user to accept the installation of each item
-# @param <Array> softwareList: The software list reference
-# @example installSoftwareList "brew install" "false" "${brewList[@]}"
-function installSoftwareList {
-    local installCommand=$1 isWithPrompt=$2
+    read -r -a command_parts <<< "$install_command"
+    [[ ${#command_parts[@]} -gt 0 ]] || return 1
+
+    if [[ "${GAUDI_DRY_RUN:-false}" == "true" ]]; then
+        printf "DRY RUN:"
+        printf " %q" "${command_parts[@]}" "$package_name"
+        printf "\n"
+        return 0
+    fi
+
+    "${command_parts[@]}" "$package_name"
+}
+
+installSoftwareList() {
+    local install_command="$1"
+    local is_with_prompt="$2"
+    local item=""
     shift 2
-    local softwareList=("$@")
+    local software_list=("$@")
 
-    for item in "${softwareList[@]}"; do
-        local software softwareDescription
-        if [[ $installCommand == *"mas"* ]]; then
-            software="${item%%::*}"
-            softwareDescription="${item#*::}"
-        else
-            software="${item%%::*}"
-            softwareDescription="${item##*::}"
+    for item in "${software_list[@]}"; do
+        local software=""
+        local software_description=""
+
+        [[ -n "$item" ]] || continue
+        software="${item%%::*}"
+        if [[ "$item" == *"::"* ]]; then
+            software_description="${item#*::}"
         fi
 
-        printf "\n%s${MAGENTA} %s\n${YELLOW}%s ${NC}%s" "👾 Installing" "$software" "Description:" "$softwareDescription"
-        
-        if [[ $isWithPrompt == "true" ]]; then
-            printf "${GREEN}%s${NC}" " | Would you like to install this? [Y/N] "
-            read -r -n 1 REPLY
-            echo
-            [[ $REPLY =~ ^[Yy]$ ]] && ${installCommand} "${software}"
-        else
-            echo
-            ${installCommand} "${software}"
+        printf "\n%b\n" "Installing ${MAGENTA:-}$software${NC:-}"
+        [[ -n "$software_description" ]] && printf "%b\n" "${YELLOW:-}Description:${NC:-} $software_description"
+
+        if [[ "$is_with_prompt" == "true" ]]; then
+            gaudi::confirm "Install $software?" "n" || continue
         fi
+
+        gaudi::run_install_command "$install_command" "$software"
     done
 }
 
-# @function brew_install_or_upgrade
-# @description Install or update a brew recipe
-# @param <String> Recipe: The recipe name we wish to install or upgrade
-function brew_install_or_upgrade {
-  if brew ls --versions "$1" >/dev/null; then
-    if (brew outdated | grep "$1" > /dev/null); then 
-      echo "Upgrading already installed package $1 ..."
-      brew upgrade "$1"
-    else 
-      echo "Latest $1 is already installed"
+brew_install_or_upgrade() {
+    local package_name="$1"
+
+    if brew list --versions "$package_name" >/dev/null 2>&1; then
+        if brew outdated --quiet "$package_name" >/dev/null 2>&1; then
+            gaudi::log "Upgrading $package_name"
+            brew upgrade "$package_name"
+        else
+            gaudi::success "$package_name is already current"
+        fi
+    else
+        brew install "$package_name"
     fi
-  else
-    brew install "$1"
-  fi
 }
 
-# @function gem_install_or_update
-# @description Install or update a ruby gem
-# @param <String> Gem: The gem name we wish to install or upgrade
-function gem_install_or_update {
-  if gem list "$1" --installed > /dev/null; then
-    gem update "$@"
-  else
-    gem install "$@" --user-install
-  fi
+brew_tap_or_update() {
+    local tap_name="$1"
+
+    if brew tap | grep -Fxq "$tap_name"; then
+        gaudi::success "Tap already configured: $tap_name"
+    else
+        brew tap "$tap_name"
+    fi
+}
+
+gem_install_or_update() {
+    local subcommand="${1:-install}"
+    shift || true
+
+    if [[ "$subcommand" == "install" && "$#" -gt 0 ]] && gem list "$1" --installed >/dev/null 2>&1; then
+        gem update "$@"
+    else
+        gem "$subcommand" "$@" --user-install
+    fi
 }

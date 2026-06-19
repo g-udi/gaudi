@@ -1,45 +1,71 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# shellcheck disable=SC1091
+set -euo pipefail
 
-# Getting the operating system of the machine
-function get_os () {
-    case $(uname) in
-    Linux )
-        command -v yum && { export OS=centos; return; }
-        command -v zypper && { export OS=opensuse; return; }
-        command -v apt-get && { export OS=debian; return; }
-        ;;
-    Darwin )
-        export OS=osx
-        ;;
-    * );;
+GAUDI="${GAUDI:-$HOME/.gaudi}"
+GAUDI_REPO_URL="${GAUDI_REPO_URL:-https://github.com/g-udi/gaudi.git}"
+export GAUDI
+
+log() {
+    printf "%s\n" "$*"
+}
+
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+install_minimum_prerequisites() {
+    case "$(uname -s 2>/dev/null || printf unknown)" in
+        Darwin)
+            if ! command_exists git; then
+                if ! command_exists brew; then
+                    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+                    if [[ -x /opt/homebrew/bin/brew ]]; then
+                        eval "$(/opt/homebrew/bin/brew shellenv)"
+                    elif [[ -x /usr/local/bin/brew ]]; then
+                        eval "$(/usr/local/bin/brew shellenv)"
+                    fi
+                fi
+                brew install git
+            fi
+            ;;
+        Linux)
+            if command_exists apt-get; then
+                sudo apt-get update
+                sudo apt-get install -y ca-certificates curl git
+            elif ! command_exists git; then
+                log "git is required. Install git and rerun this installer."
+                exit 1
+            fi
+            ;;
+        *)
+            command_exists git || {
+                log "git is required. Install git and rerun this installer."
+                exit 1
+            }
+            ;;
     esac
 }
 
-if [ -z "$GAUDI" ]; then
-    export GAUDI=~/.gaudi
-fi
+install_or_update_repo() {
+    if [[ -d "$GAUDI/.git" ]]; then
+        log "Updating existing Gaudi checkout at $GAUDI"
+        git -C "$GAUDI" fetch --depth=1 origin master
+        git -C "$GAUDI" checkout master
+        git -C "$GAUDI" pull --ff-only origin master
+        return
+    fi
 
-if [ -d "$GAUDI" ]; then
-    printf "%s\n" "You already have gaudi installed.."
-    printf "%s\n" "Setting up a fresh installation of gaudi 🌈"
-    rm -rf "$GAUDI"
-fi
+    if [[ -e "$GAUDI" ]]; then
+        log "Refusing to overwrite non-Git path: $GAUDI"
+        log "Move it aside or set GAUDI to another install directory."
+        exit 1
+    fi
 
-# Run the installation pre-requisites based on each operating system defined in gaudi
-get_os && bash -c "$(curl -kfsSL https://raw.githubusercontent.com/g-udi/gaudi/master/bin/${OS}/install-pre-requisits.sh)"
-
-# Prevent the cloned repository from having insecure permissions. Failing to do
-# so causes compinit() calls to fail with "command not found: compdef" errors
-# for users with insecure umasks (e.g., "002", allowing group writability). Note
-# that this will be ignored under Cygwin by default, as Windows ACLs take
-# precedence over umasks except for filesystems mounted with option "noacl".
-umask g-w,o-w
-
-env git clone --depth=1 https://github.com/g-udi/gaudi.git "$GAUDI" || {
-    printf "Error: Cloning of gaudi into this machine failed :(\\n"
-    exit 1
+    umask g-w,o-w
+    git clone --depth=1 "$GAUDI_REPO_URL" "$GAUDI"
 }
 
-. "$GAUDI/setup.sh"
+install_minimum_prerequisites
+install_or_update_repo
+exec "$GAUDI/setup.sh" "$@"

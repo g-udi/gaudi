@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 
-printf "\n\n${RED}%s${NC}\n\n" "Cleaning up now after installation ....."
+gaudi::log "Cleaning Homebrew cache"
 
-brew cleanup -s
-brew cask cleanup
-brew prune
+if gaudi::command_exists brew; then
+    brew cleanup -s
+else
+    gaudi::warn "Skipping cleanup: brew is not installed"
+fi

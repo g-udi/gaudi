@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+set -euo pipefail
+
+GAUDI="${GAUDI:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)}"
+export GAUDI
+
+usage() {
+    cat <<'USAGE'
+gaudi - reproducible workstation bootstrapper
+
+Usage:
+  gaudi setup [--yes] [--skip-prereqs] [--skip-templates] [--skip-software] [--skip-configs] [--skip-shell-helpers] [--skip-ssh] [--skip-cleanup]
+  gaudi backup [output-dir]
+  gaudi doctor
+  gaudi version
+  gaudi help
+USAGE
+}
+
+command_name="${1:-help}"
+shift || true
+
+case "$command_name" in
+    setup)
+        exec "$GAUDI/setup.sh" "$@"
+        ;;
+    backup)
+        exec "$GAUDI/backup.sh" "$@"
+        ;;
+    doctor)
+        # shellcheck source=/dev/null
+        source "$GAUDI/bin/colors.sh"
+        # shellcheck source=/dev/null
+        source "$GAUDI/bin/helpers.sh"
+        get_os
+        get_shell_type
+        gaudi::log "Gaudi: $GAUDI"
+        gaudi::log "OS: ${OS:-unknown}"
+        gaudi::log "Shell: ${GAUDI_SHELL:-unknown} (${GAUDI_SHELL_PROFILE:-no profile})"
+        gaudi::log "Templates: ${GAUDI_TEMPLATES_LOCATION:-$GAUDI/templates}"
+        gaudi::command_exists git || { gaudi::error "git is missing"; exit 1; }
+        gaudi::supported_os || gaudi::warn "This OS is detected but not fully automated yet: ${OS:-unknown}"
+        gaudi::success "Doctor completed"
+        ;;
+    version)
+        git -C "$GAUDI" describe --always --dirty 2>/dev/null || printf "unknown\n"
+        ;;
+    help|-h|--help)
+        usage
+        ;;
+    *)
+        gaudi::error "Unknown command: $command_name"
+        usage >&2
+        exit 64
+        ;;
+esac

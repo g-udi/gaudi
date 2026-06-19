@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 
-printf "\n\n${RED}%s${NC}\n\n" "Cleaning up now after installation ....."
+gaudi::log "Cleaning apt cache"
 
-sudo apt-get autoremove
+sudo apt-get autoremove -y
 sudo apt-get clean

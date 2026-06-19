@@ -1,21 +1,52 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# shellcheck disable=SC2044,SC1090,SC2002,SC2125,SC1087,SC2154
+# shellcheck disable=SC1090
 
-GAUDI_TEMPLATES_LOCATION="${HOME}/.gaudi/templates/"
+GAUDI_TEMPLATES_LOCATION="${GAUDI_TEMPLATES_LOCATION:-${GAUDI:-$HOME/.gaudi}/templates}"
 
-printf "\n${YELLOW}%b${NC}" "Would you like to install all the recommended configs? [Type N to select what you want to install one by one] [Y/N] ";
-read -r all_configs
+gaudi::configuration_files() {
+    [[ -d "$GAUDI_TEMPLATES_LOCATION" ]] || return 0
+    find "$GAUDI_TEMPLATES_LOCATION" -type f \
+        \( -iname "*.configs.${OS}.sh" -o -iname "*.configs.sh" \) \
+        -print | sort
+}
 
-for CONFIG in "$GAUDI_TEMPLATES_LOCATION"/*.configs.osx.sh; do
-    . "$CONFIG"
-    if [[ $all_configs =~ ^[Yy]$ ]]; then
-        printf "%b\n" "${GREEN}${_info} ✅"
+gaudi::run_configuration() {
+    local config_file="$1"
+    local install_all="$2"
+
+    unset _info
+    unset -f _command 2>/dev/null || true
+
+    # shellcheck source=/dev/null
+    source "$config_file"
+
+    if ! declare -F _command >/dev/null 2>&1; then
+        gaudi::warn "Skipping $config_file: _command function is missing"
+        return 0
+    fi
+
+    _info="${_info:-$(basename "$config_file")}"
+    if [[ "$install_all" == "true" ]]; then
+        printf "%b\n" "${GREEN:-}${_info}${NC:-}"
         _command
     else
-        printf "%b" "${GREEN}${_info} [Y/N] "
-        read -r install_config
-        [[ $install_config =~ ^[Yy]$ ]] && _command
+        gaudi::confirm "${GREEN:-}${_info}${NC:-}" "n" && _command
     fi
-done
+}
 
+if [[ ! -d "$GAUDI_TEMPLATES_LOCATION" ]]; then
+    gaudi::warn "Template directory not found: $GAUDI_TEMPLATES_LOCATION"
+    return 0
+fi
+
+if gaudi::confirm "Install all recommended configs?" "n"; then
+    install_all=true
+else
+    install_all=false
+fi
+
+while IFS= read -r config_file; do
+    [[ -n "$config_file" ]] || continue
+    gaudi::run_configuration "$config_file" "$install_all"
+done < <(gaudi::configuration_files)

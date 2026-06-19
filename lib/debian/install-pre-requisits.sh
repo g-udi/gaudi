@@ -1,25 +1,26 @@
 #!/usr/bin/env bash
-# shellcheck shell=bash disable=2016
+# shellcheck shell=bash
 
-echo -e "\nPreparing your machine by installing required software\n"
+gaudi::log "Preparing Debian/Ubuntu prerequisites"
 
-sudo apt-get update && sudo apt-get upgrade -y
+sudo apt-get update
+sudo apt-get install -y \
+    build-essential \
+    ca-certificates \
+    curl \
+    file \
+    git \
+    libssl-dev \
+    procps
 
-# Install requirements without prompt
-sudo apt-get install -y build-essential libssl-dev apt-transport-https curl file
+if ! gaudi::command_exists brew && gaudi::confirm "Install Homebrew on Linux for brew-based lists?" "n"; then
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+fi
 
-install_if_missing() {
-    if ! command -v "$1" >/dev/null 2>&1; then
-        echo "Installing $1..."
-        sudo apt-get install -y "$2"
-    fi
-}
-
-install_if_missing git git-all
-install_if_missing brew "$(curl -fsSL https://raw.githubusercontent.com/Linuxbrew/install/master/install.sh)"
-
-if command -v brew >/dev/null 2>&1; then
-    test -d ~/.linuxbrew && eval "$(~/.linuxbrew/bin/brew shellenv)"
-    test -d /home/linuxbrew/.linuxbrew && eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-    echo "eval \"\$($(brew --prefix)/bin/brew shellenv)\"" >> ~/.profile
+if [[ -d /home/linuxbrew/.linuxbrew ]]; then
+    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+    gaudi::append_once "$GAUDI_SHELL_PROFILE" 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"'
+elif [[ -d "$HOME/.linuxbrew" ]]; then
+    eval "$("$HOME/.linuxbrew/bin/brew" shellenv)"
+    gaudi::append_once "$GAUDI_SHELL_PROFILE" "eval \"\$($HOME/.linuxbrew/bin/brew shellenv)\""
 fi

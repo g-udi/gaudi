@@ -86,7 +86,7 @@ Safe smoke setup that only links the `gaudi` command (and adds its directory to 
 
 ### Updating
 
-Run the installer again. It fetches the latest Gaudi, keeps your templates, and reruns the setup; everything already installed is left alone. If you changed or added files inside `~/.gaudi` (anything outside `templates/`, which Git ignores), the installer keeps your version and tells you so instead of overwriting it.
+Run the installer again. It fetches the latest Gaudi, keeps your templates, and reruns the setup; everything already installed is left alone. If you changed Gaudi's own files inside `~/.gaudi`, the installer keeps your version and tells you so instead of overwriting it. Files that other tools keep there (untracked by Git) do not block an update.
 
 ## What does Gaudi do?
 

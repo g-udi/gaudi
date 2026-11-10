@@ -6,7 +6,7 @@
 #   test/run lint            syntax, ShellCheck and suite-completeness checks
 #   test/run unit            unit tests
 #   test/run e2e             end-to-end tests on simulated machines
-#   test/run real            real end-to-end run in a Docker container (Debian)
+#   test/run real            real end-to-end runs in Docker containers (Debian, Fedora)
 #   test/run all             everything above
 #
 # Options:
@@ -114,8 +114,10 @@ if [[ ${#bats_files[@]} -gt 0 ]]; then
 fi
 
 if [[ "$run_real" == "true" ]]; then
-    printf "\n== real end-to-end (Docker, Debian) ==\n"
-    "$TEST_DIR/real/debian.sh" || status=1
+    for distro in debian fedora; do
+        printf "\n== real end-to-end (Docker, %s) ==\n" "$distro"
+        "$TEST_DIR/real/linux.sh" "$distro" || status=1
+    done
 fi
 
 exit "$status"

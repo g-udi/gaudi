@@ -6,7 +6,7 @@
 
 load ../helper
 
-STAGE_FLAGS="prereqs ssh templates shell-helpers software configs cleanup"
+STAGE_FLAGS="prereqs ssh templates shell-helpers software configs dotfiles cleanup"
 
 setup() {
     gaudi_sandbox darwin
@@ -21,7 +21,7 @@ stage() {
 stub_stages() {
     local os=""
 
-    for os in osx debian; do
+    for os in osx debian fedora; do
         stage "lib/$os/install-pre-requisits.sh" "prereqs($os)"
         stage "lib/$os/configure.sh" "configs($os)"
         stage "lib/$os/cleanup.sh" "cleanup($os)"
@@ -30,6 +30,7 @@ stub_stages() {
     stage "configs/configure-gaudi.sh" "templates"
     stage "lib/install-shell-helpers.sh" "shell-helpers"
     stage "lib/install-software.sh" "software"
+    stage "lib/install-dotfiles.sh" "dotfiles"
 }
 
 # The stages that ran, in order, on one line
@@ -40,7 +41,7 @@ stages() {
 @test "stages run in order; cleanup is skipped unless confirmed" {
     run "$COPY/setup.sh"
     assert_success
-    assert_equal "$(stages)" "prereqs(osx) ssh templates shell-helpers software configs(osx)"
+    assert_equal "$(stages)" "prereqs(osx) ssh templates shell-helpers software configs(osx) dotfiles"
     assert_output_contains "Run package-manager cleanup now? [y/N]"
     assert_output_contains "[OK] Gaudi setup finished"
 }
@@ -48,7 +49,7 @@ stages() {
 @test "--yes also runs the cleanup stage" {
     run "$COPY/setup.sh" --yes
     assert_success
-    assert_equal "$(stages)" "prereqs(osx) ssh templates shell-helpers software configs(osx) cleanup(osx)"
+    assert_equal "$(stages)" "prereqs(osx) ssh templates shell-helpers software configs(osx) dotfiles cleanup(osx)"
 }
 
 @test "-y is the short form of --yes" {
@@ -75,11 +76,12 @@ stages() {
     for flag in $STAGE_FLAGS; do
         run "$COPY/setup.sh" --yes "--skip-$flag"
         assert_success
-        expected="prereqs(osx) ssh templates shell-helpers software configs(osx) cleanup(osx)"
+        expected="prereqs(osx) ssh templates shell-helpers software configs(osx) dotfiles cleanup(osx)"
         case "$flag" in
             prereqs) expected="${expected/prereqs(osx) /}" ;;
             configs) expected="${expected/configs(osx) /}" ;;
             cleanup) expected="${expected/ cleanup(osx)/}" ;;
+            dotfiles) expected="${expected/ dotfiles/}" ;;
             *) expected="${expected/$flag /}" ;;
         esac
         assert_equal "$(stages)" "$expected"
@@ -87,23 +89,23 @@ stages() {
 }
 
 @test "each GAUDI_SKIP_* variable skips exactly its own stage" {
-    for variable in GAUDI_SKIP_PREREQS GAUDI_SKIP_SSH GAUDI_SKIP_TEMPLATES GAUDI_SKIP_SHELL_HELPERS GAUDI_SKIP_SOFTWARE GAUDI_SKIP_CONFIGS GAUDI_SKIP_CLEANUP; do
+    for variable in GAUDI_SKIP_PREREQS GAUDI_SKIP_SSH GAUDI_SKIP_TEMPLATES GAUDI_SKIP_SHELL_HELPERS GAUDI_SKIP_SOFTWARE GAUDI_SKIP_CONFIGS GAUDI_SKIP_DOTFILES GAUDI_SKIP_CLEANUP; do
         run env "$variable=true" "$COPY/setup.sh" --yes
         assert_success
         marker="$(printf '%s' "${variable#GAUDI_SKIP_}" | tr 'A-Z_' 'a-z-')"
         refute_output_contains "STAGE:$marker"
-        assert_equal "$(stages | wc -w | tr -d ' ')" "6"
+        assert_equal "$(stages | wc -w | tr -d ' ')" "7"
     done
 }
 
 @test "skip flags can be combined, in any order" {
     run "$COPY/setup.sh" --skip-software --yes --skip-ssh --skip-cleanup
     assert_success
-    assert_equal "$(stages)" "prereqs(osx) templates shell-helpers configs(osx)"
+    assert_equal "$(stages)" "prereqs(osx) templates shell-helpers configs(osx) dotfiles"
 }
 
 @test "with every stage skipped, setup only installs the CLI" {
-    run "$COPY/setup.sh" --yes --skip-prereqs --skip-templates --skip-software --skip-configs --skip-shell-helpers --skip-ssh --skip-cleanup
+    run "$COPY/setup.sh" --yes --skip-prereqs --skip-templates --skip-software --skip-configs --skip-shell-helpers --skip-ssh --skip-dotfiles --skip-cleanup
     assert_success
     assert_equal "$(stages)" ""
     [[ -L "$HOME/.local/bin/gaudi" ]]
@@ -141,7 +143,23 @@ stages() {
     gaudi_sandbox debian
     run "$COPY/setup.sh" --yes
     assert_success
-    assert_equal "$(stages)" "prereqs(debian) ssh templates shell-helpers software configs(debian) cleanup(debian)"
+    assert_equal "$(stages)" "prereqs(debian) ssh templates shell-helpers software configs(debian) dotfiles cleanup(debian)"
+}
+
+@test "Fedora runs the Fedora stages" {
+    gaudi_sandbox fedora
+    run "$COPY/setup.sh" --yes
+    assert_success
+    assert_equal "$(stages)" "prereqs(fedora) ssh templates shell-helpers software configs(fedora) dotfiles cleanup(fedora)"
+}
+
+@test "a Linux with only yum is reported as unsupported" {
+    gaudi_sandbox debian
+    remove_tool apt-get apt-mark
+    add_tool yum
+    run "$COPY/setup.sh" --yes
+    assert_failure 1
+    assert_output_contains "Detected: centos"
 }
 
 @test "an unsupported OS stops before any stage" {
@@ -149,7 +167,7 @@ stages() {
         export FAKE_UNAME="$kernel"
         run "$COPY/setup.sh" --yes
         assert_failure 1
-        assert_output_contains "Gaudi currently automates macOS and Debian/Ubuntu. Detected: unknown"
+        assert_output_contains "Gaudi currently automates macOS, Debian/Ubuntu and Fedora. Detected: unknown"
         assert_equal "$(stages)" ""
     done
 }
@@ -166,7 +184,7 @@ stages() {
     printf 'printf "STAGE:templates\\n"\ngaudi::record_failure "templates exploded"\n' > "$COPY/configs/configure-gaudi.sh"
     run "$COPY/setup.sh" --yes
     assert_failure 1
-    assert_equal "$(stages)" "prereqs(osx) ssh templates shell-helpers software configs(osx) cleanup(osx)"
+    assert_equal "$(stages)" "prereqs(osx) ssh templates shell-helpers software configs(osx) dotfiles cleanup(osx)"
     assert_output_contains "1 step(s) failed:"
     assert_output_contains "  - templates exploded"
     assert_output_contains "Gaudi setup finished with failures"
@@ -178,7 +196,7 @@ stages() {
     run "$COPY/setup.sh" --yes
     assert_success
     assert_output_contains "Skipping missing step: $COPY/lib/install-shell-helpers.sh"
-    assert_equal "$(stages)" "prereqs(osx) ssh templates software configs(osx) cleanup(osx)"
+    assert_equal "$(stages)" "prereqs(osx) ssh templates software configs(osx) dotfiles cleanup(osx)"
 }
 
 @test "GAUDI and SOURCE_LOCATION point the stages at the checkout" {

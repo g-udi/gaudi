@@ -82,6 +82,7 @@ setup() {
 }
 
 @test "colors load without TERM and without tput" {
+    remove_tool tput
     unset TERM
     run call eval 'printf "loaded"'
     assert_success

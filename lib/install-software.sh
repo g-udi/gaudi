@@ -9,6 +9,7 @@ GAUDI_TEMPLATES_LOCATION="${GAUDI_TEMPLATES_LOCATION:-${GAUDI:-$HOME/.gaudi}/tem
 # The list engine below only remains for managers brew bundle does not cover.
 softwareLists=(
     "debian|apt::sudo apt-get install -y"
+    "fedora|dnf::sudo dnf install -y"
     "*|gem::gem_install_or_update install"
 )
 
@@ -45,6 +46,9 @@ gaudi::installer_available_for_type() {
         apt)
             gaudi::command_exists apt-get
             ;;
+        dnf)
+            gaudi::command_exists dnf
+            ;;
         gem)
             gaudi::command_exists gem
             ;;
@@ -54,11 +58,46 @@ gaudi::installer_available_for_type() {
     esac
 }
 
+# Ask about every entry of a Brewfile and write the accepted ones to a new
+# file. Taps, cask_args, comments and anything else that is not a package are
+# kept, so the result is still a valid Brewfile.
+#   gaudi::pick_brewfile_entries <brewfile> <output file>
+gaudi::pick_brewfile_entries() {
+    local brewfile="$1"
+    local picked="$2"
+    local line=""
+    local description=""
+    local entry_re='^[[:space:]]*(brew|cask|mas|npm|uv|go|cargo|vscode|whalebrew|flatpak|krew)[[:space:]]+"([^"]+)"'
+    local comment_re='^[[:space:]]*#[[:space:]]*(.*)$'
+
+    : > "$picked"
+    while IFS= read -r -u 5 line || [[ -n "$line" ]]; do
+        if [[ "$line" =~ $entry_re ]]; then
+            printf "\n%b\n" "${MAGENTA:-}${BASH_REMATCH[2]}${NC:-} (${BASH_REMATCH[1]})"
+            [[ -n "$description" ]] && printf "%b\n" "${YELLOW:-}Description:${NC:-} $description"
+            if gaudi::confirm "Install ${BASH_REMATCH[2]}?" "n"; then
+                printf "%s\n" "$line" >> "$picked"
+            fi
+            description=""
+            continue
+        fi
+
+        if [[ "$line" =~ $comment_re ]]; then
+            description="${BASH_REMATCH[1]}"
+        else
+            description=""
+        fi
+        printf "%s\n" "$line" >> "$picked"
+    done 5< "$brewfile"
+}
+
 gaudi::install_brewfile() {
     local brewfile="$1"
     local name=""
     local title=""
     local description=""
+    local to_install="$brewfile"
+    local picked=""
 
     name="$(gaudi::brewfile_name "$brewfile")"
     title="$(gaudi::metadata_value "$brewfile" "@Name")"
@@ -69,12 +108,21 @@ gaudi::install_brewfile() {
     [[ -n "$description" ]] && printf "%b\n" "${MAGENTA:-}$description${NC:-}"
     gaudi::confirm "Install this Brewfile?" "n" || return 0
 
+    if ! gaudi::confirm "Install everything in $title?" "y"; then
+        picked="$(mktemp "${TMPDIR:-/tmp}/gaudi-picked.XXXXXX")"
+        gaudi::pick_brewfile_entries "$brewfile" "$picked"
+        to_install="$picked"
+    fi
+
     # pre.bundle-<name>.hooks.sh, or pre.bundle-<name>.<topic>.hooks.sh for several hooks per Brewfile
     gaudi::run_hooks_matching "pre.bundle-${name}.hooks.sh"
     gaudi::run_hooks_matching "pre.bundle-${name}.*.hooks.sh"
-    gaudi::bundle_install "$brewfile" || gaudi::record_failure "some entries in $brewfile (rerun: brew bundle install --file=$brewfile)"
+    gaudi::bundle_install "$to_install" || gaudi::record_failure "some entries in $brewfile (rerun: brew bundle install --file=$brewfile)"
     gaudi::run_hooks_matching "post.bundle-${name}.hooks.sh"
     gaudi::run_hooks_matching "post.bundle-${name}.*.hooks.sh"
+
+    [[ -n "$picked" ]] && rm -f "$picked"
+    return 0
 }
 
 gaudi::install_list_file() {

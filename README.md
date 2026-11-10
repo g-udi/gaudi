@@ -10,7 +10,28 @@
 
 As a developer or tech enthusiast, you have probably experienced the friction of setting up a new machine. Whether it is a fresh operating system install or a brand-new device, the process of reinstalling your go-to applications, configuring development environments, and getting everything to run smoothly can feel like a tedious chore. That is why I created [**Gaudi**](https://github.com/g-udi/gaudi): a tool designed to make setting up a new machine efficient, consistent, and repeatable.
 
-![2024-09-20 12 07 54](https://github.com/user-attachments/assets/96a8dafb-d5e6-4e09-9476-b90a044976a6)
+```text
+$ gaudi setup
+
+[INFO] Detected OS: osx
+[INFO] Detected shell: zsh
+
+Brewfile: Applications (~/.gaudi/templates/lists/apps.Brewfile)
+Desktop applications installed as Homebrew casks
+Install this Brewfile? [y/N] y
+Install everything in Applications? [Y/n] n
+
+raycast (cask)
+Description: Launcher and productivity tool
+Install raycast? [y/N] y
+
+kitty (cask)
+Description: GPU-based terminal emulator
+Install kitty? [y/N] n
+...
+Show Finder path bar [y/N] y
+[OK] Gaudi setup finished
+```
 
 ## The Problem: Time-Consuming Setup
 
@@ -32,7 +53,7 @@ The main motivation behind Gaudi is:
 - Share machine setups between users with [templates](https://github.com/g-udi/gaudi-templates).
 - Keep the bootstrapper predictable while still installing cleanly for Bash, Zsh, Fish, and POSIX-style login shells.
 
-> Note: Gaudi automates macOS and Debian/Ubuntu paths. Other Linux families are detected and reported rather than guessed.
+> Note: Gaudi automates macOS, Debian/Ubuntu and Fedora. Other Linux families are detected and reported rather than guessed.
 
 ## Installation
 
@@ -42,7 +63,7 @@ Install Gaudi from the command line:
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi/master/install.sh)"
 ```
 
-The installer makes sure Git is available (on a fresh Mac it installs [Homebrew](https://brew.sh/), which brings the Xcode Command Line Tools), clones Gaudi into `~/.gaudi` and starts the setup. It works on the Bash 3.2 that ships with macOS; nothing needs to be installed first. On Debian/Ubuntu it needs `sudo`.
+The installer makes sure Git is available (on a fresh Mac it installs [Homebrew](https://brew.sh/), which brings the Xcode Command Line Tools), clones Gaudi into `~/.gaudi` and starts the setup. It works on the Bash 3.2 that ships with macOS; nothing needs to be installed first. On Linux it uses `sudo`, or runs the commands directly when you are already root (a container, a fresh server).
 
 Setup flags go after a name for the script:
 
@@ -71,12 +92,13 @@ Run the installer again. It fetches the latest Gaudi, keeps your templates, and 
 
 Gaudi automates the setup path in separate, skippable stages:
 
-- **Install the prerequisites for the OS**: OS detection is automatic. macOS and Debian/Ubuntu have fully automated paths.
+- **Install the prerequisites for the OS**: OS detection is automatic. macOS, Debian/Ubuntu and Fedora have fully automated paths.
 - **Configure SSH**: Offer to generate an SSH key when none exists (a key file or a key served by an agent), so private template repositories can be cloned.
 - **Configure Gaudi templates**: Clone or update the templates repository.
-- **Install shell helpers**: Suggest shell helpers such as [gaudi-bash](https://github.com/g-udi/gaudi-bash) or [oh-my-zsh](https://ohmyz.sh/).
-- **Install software**: Install the [Brewfiles](https://docs.brew.sh/Brew-Bundle-and-Brewfile) from the templates with `brew bundle`, plus apt and gem lists.
+- **Install shell helpers**: Suggest shell helpers such as [gaudi-shell](https://github.com/g-udi/gaudi-shell) or [oh-my-zsh](https://ohmyz.sh/).
+- **Install software**: Install the [Brewfiles](https://docs.brew.sh/Brew-Bundle-and-Brewfile) from the templates with `brew bundle`, plus apt, dnf and gem lists.
 - **Run configuration scripts**: Apply OS-specific or shared machine configuration scripts from templates.
+- **Restore dotfiles**: Put the files under `dotfiles/` in the templates back into your home directory.
 - **Clean up**: Run package-manager cleanup when requested.
 
 Every major stage can be skipped with a setup flag, so Gaudi can be used interactively, in a dry smoke setup, or as part of a more controlled machine provisioning flow.
@@ -85,7 +107,7 @@ Every major stage can be skipped with a setup flag, so Gaudi can be used interac
 
 | How it is run | What happens at each prompt |
 | --- | --- |
-| In a terminal | You are asked: each Brewfile, each list, each configuration script |
+| In a terminal | You are asked: each Brewfile (all of it, or package by package), each list, each configuration script |
 | With `--yes` | Everything is accepted |
 | Without a terminal and without `--yes` | The safe default is taken: templates are cloned or updated, nothing optional is installed |
 
@@ -103,6 +125,7 @@ After setup, Gaudi installs a `gaudi` command into `${GAUDI_BIN_DIR:-$HOME/.loca
 | --- | --- |
 | `gaudi setup [flags]` | Run the setup again |
 | `gaudi backup [output-dir]` | Capture the installed software (default: `./backup`) |
+| `gaudi check [templates-dir] [--online]` | Check a templates directory for things that will not work; changes nothing |
 | `gaudi doctor` | Show the install location, OS, shell, templates and whether Git and Homebrew are available; changes nothing |
 | `gaudi version` | Print the installed version |
 | `gaudi help` | Print the usage |
@@ -117,6 +140,7 @@ gaudi setup --skip-software
 gaudi setup --skip-configs
 gaudi setup --skip-shell-helpers
 gaudi setup --skip-ssh
+gaudi setup --skip-dotfiles
 gaudi setup --skip-cleanup
 ```
 
@@ -135,17 +159,25 @@ gaudi backup
 gaudi backup ./backup
 ```
 
-Backup writes a single `Brewfile` with `brew bundle dump --describe` (taps, formulae, casks, Mac App Store apps, VS Code extensions and the language packages Homebrew tracks, each with its description). On Debian/Ubuntu it also writes `default.apt.list.sh` with the packages you installed yourself (`apt-mark showmanual`).
+A backup holds:
+
+| File | What it captures |
+| --- | --- |
+| `Brewfile` | Taps, formulae, casks, Mac App Store apps, VS Code extensions and the language packages Homebrew tracks, each with its description (`brew bundle dump`) |
+| `default.apt.list.sh` | Debian/Ubuntu: the packages you installed yourself (`apt-mark showmanual`) |
+| `default.dnf.list.sh` | Fedora: the packages you installed yourself |
+| `default.gem.list.sh` | Ruby gems in your user gem directory |
+| `dotfiles/` | The files and directories named in the templates' `dotfiles.list` |
 
 Limit what is backed up with `GAUDI_BACKUP_MANAGERS`:
 
 ```sh
-GAUDI_BACKUP_MANAGERS="bundle" gaudi backup ./backup
+GAUDI_BACKUP_MANAGERS="bundle dotfiles" gaudi backup ./backup
 ```
 
 To restore on another machine:
 
-1. Put the backup files in your templates repository (for example under `lists/`) and push it.
+1. Put the backup files in your templates repository and push it. The lists can go anywhere (for example under `lists/`); `dotfiles/` stays at the top.
 2. On the new machine, run the installer and give it that repository when it asks for the templates URL, or set it up front:
 
 ```sh
@@ -155,7 +187,7 @@ GAUDI_DEFAULT_TEMPLATES_URL="git@github.com:you/your-templates.git" \
 
 A restore only adds software; it never removes what is already on the machine. If a package no longer exists, the rest is still restored and the failure is listed at the end.
 
-What a backup does not contain: Ruby gems, dotfiles, application settings and macOS preferences. Preferences belong in [configuration scripts](#configuration-scripts).
+What a backup does not contain: anything you did not list in `dotfiles.list`, and macOS preferences set with `defaults`, which belong in [configuration scripts](#configuration-scripts). Application settings are usually files, so they can be listed in `dotfiles.list` (for example `Library/Preferences/com.googlecode.iterm2.plist`).
 
 ## Environment Variables
 
@@ -169,14 +201,15 @@ Every setup flag has a variable, and a few more settings only exist as variables
 | `GAUDI_TEMPLATES_LOCATION` | `$GAUDI/templates` | Where the templates live |
 | `GAUDI_DEFAULT_TEMPLATES_URL` | `https://github.com/g-udi/gaudi-templates.git` | Templates repository offered at the prompt |
 | `GAUDI_ASSUME_YES` | `false` | Same as `--yes` |
-| `GAUDI_SKIP_PREREQS`, `GAUDI_SKIP_SSH`, `GAUDI_SKIP_TEMPLATES`, `GAUDI_SKIP_SHELL_HELPERS`, `GAUDI_SKIP_SOFTWARE`, `GAUDI_SKIP_CONFIGS`, `GAUDI_SKIP_CLEANUP` | `false` | Same as the matching `--skip-*` flag |
-| `GAUDI_DRY_RUN` | `false` | Print install commands, hooks and configs instead of running them |
+| `GAUDI_SKIP_PREREQS`, `GAUDI_SKIP_SSH`, `GAUDI_SKIP_TEMPLATES`, `GAUDI_SKIP_SHELL_HELPERS`, `GAUDI_SKIP_SOFTWARE`, `GAUDI_SKIP_CONFIGS`, `GAUDI_SKIP_DOTFILES`, `GAUDI_SKIP_CLEANUP` | `false` | Same as the matching `--skip-*` flag |
+| `GAUDI_DRY_RUN` | `false` | Print install commands, hooks, configs and dotfiles instead of running them |
 | `GAUDI_BUNDLE_NO_UPGRADE` | `false` | Install missing Brewfile entries without upgrading existing ones |
 | `GAUDI_TARGET_SHELL` | from `$SHELL` | Shell whose profile gets the `PATH` and Homebrew lines |
 | `GAUDI_SETUP_PROFILE` | per shell | Profile file to write to instead |
 | `GAUDI_BIN_DIR` | `~/.local/bin` | Where the `gaudi` command is linked |
 | `GAUDI_SSH_EMAIL` | asked | Email for a newly generated SSH key |
-| `GAUDI_BACKUP_MANAGERS` | `bundle` (plus `apt` on Debian) | What `gaudi backup` captures |
+| `GAUDI_BACKUP_MANAGERS` | `bundle gem dotfiles` (plus `apt` on Debian, `dnf` on Fedora) | What `gaudi backup` captures |
+| `GAUDI_HELPER_REPO_URL` | `https://github.com/g-udi/gaudi-shell.git` | Repository the gaudi-shell helper is cloned from |
 | `GAUDI_BREW_BIN_DIRS` | the standard Homebrew locations | Colon-separated directories searched for a Homebrew that is not on `PATH` yet |
 
 ## Supported Systems and Shells
@@ -185,6 +218,9 @@ Fully automated OS paths:
 
 - macOS
 - Debian and Ubuntu
+- Fedora
+
+On Linux, Gaudi works for a regular user with `sudo` and for root. Homebrew refuses to run as root, so Brewfiles are skipped there; apt or dnf lists, configs and dotfiles still apply.
 
 Shell profile support:
 
@@ -211,7 +247,7 @@ Default template repository:
 https://github.com/g-udi/gaudi-templates.git
 ```
 
-A templates repository holds Brewfiles, lists, hooks and configuration scripts. Gaudi finds them by file name, wherever they are in the repository. Templates are code that runs on your machine: only use a repository you trust.
+A templates repository holds Brewfiles, lists, hooks, configuration scripts and dotfiles. Gaudi finds them by file name, wherever they are in the repository. Templates are code that runs on your machine: only use a repository you trust.
 
 ### Software: Brewfiles
 
@@ -253,6 +289,7 @@ aptList=(
 Supported list targets:
 
 - `apt`: Debian/Ubuntu packages, in files such as `default.apt.list.sh`
+- `dnf`: Fedora packages, in files such as `default.dnf.list.sh`
 - `gem`: Ruby gems, in files such as `default.gem.list.sh`
 
 Older `brew`, `cask`, `tap`, `mas`, `npm`, `pip` and `go` lists are no longer installed; setup prints a warning for each one it finds so it can be moved into a Brewfile. Python tools go in a Brewfile as `uv "<tool>"` entries, because `pip install --user` is refused by current Homebrew and Debian Pythons.
@@ -266,7 +303,7 @@ Hooks are shell scripts in the templates that Gaudi sources around the software 
 | `pre.bundle.hooks.sh` / `post.bundle.hooks.sh` | Before the first / after the last Brewfile |
 | `pre.bundle-<name>.hooks.sh` / `post.bundle-<name>.hooks.sh` | Around `<name>.Brewfile`, only if it was accepted |
 | `pre.bundle-<name>.<topic>.hooks.sh` / `post.bundle-<name>.<topic>.hooks.sh` | Same, when one Brewfile needs several hooks |
-| `pre.apt.hooks.sh`, `post.gem.hooks.sh`, ... | Around the apt and gem lists |
+| `pre.apt.hooks.sh`, `pre.dnf.hooks.sh`, `post.gem.hooks.sh`, ... | Around the apt, dnf and gem lists |
 
 Hooks run inside the setup, so they can use its helpers: `command_exists <tool>`, `gaudi::confirm "Question?" "n"` (which follows `--yes` and the no-terminal defaults), and `gaudi::record_failure "what failed"` to report a problem in the final summary.
 
@@ -279,7 +316,7 @@ Configuration scripts are discovered from templates using:
 *.configs.sh
 ```
 
-where `<os>` is `osx` or `debian`; files without it apply to both. Each configuration script should define `_info` and `_command`:
+where `<os>` is `osx`, `debian` or `fedora`; files without it apply to all. Each configuration script should define `_info` and `_command`:
 
 ```sh
 _info="Show Finder path bar"
@@ -289,6 +326,39 @@ _command() {
 ```
 
 Setup first asks whether to apply all of them, and otherwise asks for each one, showing its `_info`.
+
+### Dotfiles
+
+`dotfiles.list` names what `gaudi backup` should copy, one path per line, relative to your home directory:
+
+```text
+# shell and Git
+.zshrc
+.gitconfig
+.config/kitty          # a whole directory
+```
+
+Everything under `dotfiles/` at the top of the templates is restored by `gaudi setup`, keeping the same layout (`dotfiles/.config/kitty/kitty.conf` goes to `~/.config/kitty/kitty.conf`). Setup lists what would change and asks once. A file that is already identical is left alone; a different one is first moved aside as `<file>.gaudi-backup`.
+
+Do not list secrets such as SSH keys or tokens when the templates repository is public.
+
+### Checking templates
+
+```sh
+gaudi check                # the configured templates
+gaudi check ./my-templates
+gaudi check --online       # also ask Homebrew whether every formula and cask still exists
+```
+
+`gaudi check` reads a templates directory and reports what would not work, without changing anything:
+
+- a Brewfile that Homebrew cannot read, or a `mas` entry without its id
+- a hook or configuration script whose file name means it never runs (a typo, a Brewfile that does not exist, an unknown OS)
+- a list without its `@List` line or its array, and old lists that are no longer installed
+- a configuration script without `_command`
+- `dotfiles.list` entries that point outside the home directory
+
+It exits 1 when it finds errors, so it can guard a templates repository in CI; the [default templates](https://github.com/g-udi/gaudi-templates) do exactly that. With `--online` it also reports formulae and casks that Homebrew has removed, disabled or deprecated (one lookup per package, so it is slow).
 
 ## Behind the Scenes
 
@@ -303,7 +373,7 @@ configs/
   configure-gaudi.sh
   configure-ssh.sh
 lib/
-  debian/
+  debian/        fedora/ and osx/ hold the same three files
     cleanup.sh
     configure.sh
     install-pre-requisits.sh
@@ -312,6 +382,7 @@ lib/
     configure.sh
     install-pre-requisits.sh
   install-configurations.sh
+  install-dotfiles.sh
   install-shell-helpers.sh
   install-software.sh
 test/
@@ -320,21 +391,22 @@ test/
   e2e/           end-to-end tests on simulated machines (bats)
   real/          real end-to-end runs (Docker, CI)
   fakes/         fake brew, apt, sudo, curl, ... for the simulated machines
-  support/       drivers that load the code the way setup.sh does
+  support/       drivers that load the code the way setup.sh does, and a pseudo-terminal
   helper.bash    the sandbox every test runs in
 .github/workflows/tests.yml
 install.sh
 setup.sh
 backup.sh
+check.sh
 ```
 
 ## Testing
 
 ```sh
-test/run                # lint + unit + end-to-end (about a minute and a half)
+test/run                # lint + unit + end-to-end (a few minutes)
 test/run unit           # one suite: lint, unit, e2e or real
 test/run --every-bash   # also under /bin/bash, the 3.2 that ships with macOS
-test/run real           # real end-to-end run in a Docker container
+test/run real           # real end-to-end runs in Docker containers
 test/run e2e --filter "backup"
 ```
 
@@ -343,9 +415,9 @@ The suite is written with [bats-core](https://github.com/bats-core/bats-core). T
 | Suite | What it covers |
 | --- | --- |
 | `lint` | Bash syntax (also under bash 3.2), [ShellCheck](https://www.shellcheck.net/), and checks that every script, library function, setup flag and `GAUDI_*` variable is both tested and documented |
-| `unit` | Every function and every setup step on its own: prompts, OS and shell detection, Brewfile and list installation, hooks, configs, SSH, templates, prerequisites, the CLI, the installer, backup |
-| `e2e` | The real `install.sh`, `setup.sh` and `gaudi backup` on simulated machines: a fresh Mac and a fresh Debian from the one-line installer, backup on one machine and restore on another, failures and reruns |
-| `real` | Nothing simulated: a Debian container where real `apt` installs packages, they are backed up, removed and restored. `test/real/macos.sh` does the same with the real Homebrew and only runs in CI or with `GAUDI_E2E_REAL_MACOS=1` |
+| `unit` | Every function and every setup step on its own: prompts, OS and shell detection, Brewfile and list installation, hooks, configs, dotfiles, SSH, templates, prerequisites, the CLI, the installer, backup, the templates checker. Colours and prompts are also tested on a real pseudo-terminal, typing the answers key by key |
+| `e2e` | The real `install.sh`, `setup.sh` and `gaudi backup` on simulated machines: a fresh Mac, Debian and Fedora from the one-line installer, backup on one machine and restore on another, failures and reruns |
+| `real` | Nothing simulated: Debian and Fedora containers, running as root, where the real `apt` and `dnf` install packages, and packages and dotfiles are backed up, removed and restored. `test/real/macos.sh` does the same with the real Homebrew and only runs in CI or with `GAUDI_E2E_REAL_MACOS=1` |
 
 Unit and end-to-end tests never touch the machine they run on. Each test gets a throwaway home directory and a `PATH` that holds only fake tools (`test/fakes`: brew, apt, sudo, curl, ssh-keygen, ...) and a whitelist of coreutils. The fake package managers record what they "install", which is how a restored machine is compared with the one that was backed up.
 
@@ -356,7 +428,7 @@ Unit and end-to-end tests never touch the machine they run on. Each test gets a 
 | Job | Runs |
 | --- | --- |
 | `suite` | `test/run --every-bash` on macOS and Ubuntu |
-| `real-debian` | `test/run real`: real apt in a Debian container |
+| `real-linux` | `test/run real`: real apt in a Debian container and real dnf in a Fedora container |
 | `real-macos` | `test/real/macos.sh`: a real formula installed, backed up, removed and restored with Homebrew |
 | `tests passed` | Succeeds only when all of the above did |
 
@@ -379,4 +451,8 @@ These are enforced by the suite; they are listed here because each one was a rea
 - [mas](https://github.com/mas-cli/mas)
 - [oh-my-zsh](https://ohmyz.sh/)
 - [gaudi-templates](https://github.com/g-udi/gaudi-templates)
-- [gaudi-bash](https://github.com/g-udi/gaudi-bash)
+- [gaudi-shell](https://github.com/g-udi/gaudi-shell)
+
+## License
+
+[MIT](LICENSE)

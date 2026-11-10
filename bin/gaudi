@@ -37,8 +37,9 @@ usage() {
 gaudi - reproducible workstation bootstrapper
 
 Usage:
-  gaudi setup [--yes] [--skip-prereqs] [--skip-templates] [--skip-software] [--skip-configs] [--skip-shell-helpers] [--skip-ssh] [--skip-cleanup]
+  gaudi setup [--yes] [--skip-prereqs] [--skip-templates] [--skip-software] [--skip-configs] [--skip-shell-helpers] [--skip-ssh] [--skip-dotfiles] [--skip-cleanup]
   gaudi backup [output-dir]
+  gaudi check [templates-dir] [--online]
   gaudi doctor
   gaudi version
   gaudi help
@@ -92,6 +93,9 @@ case "$command_name" in
         ;;
     backup)
         exec "$GAUDI/backup.sh" "$@"
+        ;;
+    check)
+        exec "$GAUDI/check.sh" "$@"
         ;;
     doctor)
         doctor

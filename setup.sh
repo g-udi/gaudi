@@ -15,6 +15,7 @@ GAUDI_SKIP_SHELL_HELPERS="${GAUDI_SKIP_SHELL_HELPERS:-false}"
 GAUDI_SKIP_SSH="${GAUDI_SKIP_SSH:-false}"
 GAUDI_SKIP_PREREQS="${GAUDI_SKIP_PREREQS:-false}"
 GAUDI_SKIP_TEMPLATES="${GAUDI_SKIP_TEMPLATES:-false}"
+GAUDI_SKIP_DOTFILES="${GAUDI_SKIP_DOTFILES:-false}"
 GAUDI_SKIP_CLEANUP="${GAUDI_SKIP_CLEANUP:-false}"
 
 while [[ $# -gt 0 ]]; do
@@ -40,12 +41,15 @@ while [[ $# -gt 0 ]]; do
         --skip-templates)
             GAUDI_SKIP_TEMPLATES="true"
             ;;
+        --skip-dotfiles)
+            GAUDI_SKIP_DOTFILES="true"
+            ;;
         --skip-cleanup)
             GAUDI_SKIP_CLEANUP="true"
             ;;
         --help|-h)
             cat <<'USAGE'
-Usage: setup.sh [--yes] [--skip-prereqs] [--skip-templates] [--skip-software] [--skip-configs] [--skip-shell-helpers] [--skip-ssh] [--skip-cleanup]
+Usage: setup.sh [--yes] [--skip-prereqs] [--skip-templates] [--skip-software] [--skip-configs] [--skip-shell-helpers] [--skip-ssh] [--skip-dotfiles] [--skip-cleanup]
 USAGE
             exit 0
             ;;
@@ -57,7 +61,7 @@ USAGE
     shift
 done
 
-export GAUDI_ASSUME_YES GAUDI_SKIP_SOFTWARE GAUDI_SKIP_CONFIGS GAUDI_SKIP_SHELL_HELPERS GAUDI_SKIP_SSH GAUDI_SKIP_PREREQS GAUDI_SKIP_TEMPLATES GAUDI_SKIP_CLEANUP
+export GAUDI_ASSUME_YES GAUDI_SKIP_SOFTWARE GAUDI_SKIP_CONFIGS GAUDI_SKIP_SHELL_HELPERS GAUDI_SKIP_SSH GAUDI_SKIP_PREREQS GAUDI_SKIP_TEMPLATES GAUDI_SKIP_DOTFILES GAUDI_SKIP_CLEANUP
 
 for config in "$SOURCE_LOCATION"/bin/{colors,helpers,commands,installer}.sh; do
     # shellcheck source=/dev/null
@@ -86,7 +90,7 @@ gaudi::log "Detected shell: ${GAUDI_SETUP_SHELL:-unknown}"
 gaudi::log "Shell profile: ${GAUDI_SETUP_PROFILE:-unknown}"
 
 gaudi::supported_os || {
-    gaudi::error "Gaudi currently automates macOS and Debian/Ubuntu. Detected: ${OS:-unknown}"
+    gaudi::error "Gaudi currently automates macOS, Debian/Ubuntu and Fedora. Detected: ${OS:-unknown}"
     exit 1
 }
 
@@ -114,6 +118,10 @@ fi
 
 if [[ "$GAUDI_SKIP_CONFIGS" != "true" ]]; then
     gaudi::source_if_exists "$SOURCE_LOCATION/lib/${OS}/configure.sh"
+fi
+
+if [[ "$GAUDI_SKIP_DOTFILES" != "true" ]]; then
+    gaudi::source_if_exists "$SOURCE_LOCATION/lib/install-dotfiles.sh"
 fi
 
 if [[ "$GAUDI_SKIP_CLEANUP" != "true" ]] && gaudi::confirm "Run package-manager cleanup now?" "n"; then

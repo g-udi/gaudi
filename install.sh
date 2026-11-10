@@ -15,6 +15,18 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# sudo when it exists, directly when already root (minimal images have no sudo)
+as_root() {
+    if command_exists sudo; then
+        sudo "$@"
+    elif [[ "$(id -u 2>/dev/null || printf 1)" == "0" ]]; then
+        "$@"
+    else
+        log "This step needs root: install sudo or run this installer as root."
+        exit 1
+    fi
+}
+
 # Homebrew is not on PATH right after it is installed.
 # GAUDI_BREW_BIN_DIRS (colon-separated) overrides where to look for it.
 load_brew() {
@@ -61,8 +73,16 @@ install_minimum_prerequisites() {
         Linux)
             if ! command_exists git || ! command_exists curl; then
                 if command_exists apt-get; then
-                    sudo apt-get update
-                    sudo apt-get install -y ca-certificates curl git
+                    as_root apt-get update
+                    as_root apt-get install -y ca-certificates curl git
+                elif command_exists dnf; then
+                    # curl is only added when missing: Fedora images ship
+                    # curl-minimal, which conflicts with the full package
+                    if command_exists curl; then
+                        as_root dnf install -y git
+                    else
+                        as_root dnf install -y curl git
+                    fi
                 else
                     log "git and curl are required. Install them and rerun this installer."
                     exit 1

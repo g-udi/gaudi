@@ -39,13 +39,13 @@ jobs:
       - name: Run the suite
         run: test/run --every-bash
 
-  real-debian:
-    name: real end-to-end (Debian container)
+  real-linux:
+    name: real end-to-end (Debian and Fedora containers)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Install, back up, remove and restore real apt packages
+      - name: Install, back up, remove and restore real apt and dnf packages
         run: test/run real
 
   real-macos:
@@ -62,7 +62,7 @@ jobs:
   passed:
     name: tests passed
     if: always()
-    needs: [suite, real-debian, real-macos]
+    needs: [suite, real-linux, real-macos]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

@@ -11,7 +11,26 @@ source "$SOURCE_LOCATION/bin/helpers.sh"
 source "$SOURCE_LOCATION/bin/commands.sh"
 
 BACKUP_DIR="${1:-$PWD/backup}"
+GAUDI_TEMPLATES_LOCATION="${GAUDI_TEMPLATES_LOCATION:-${GAUDI:-$SOURCE_LOCATION}/templates}"
 mkdir -p "$BACKUP_DIR"
+
+# Write a Gaudi list file from package names on stdin.
+#   write_list <file> <array name>
+write_list() {
+    local file="$1"
+    local list_name="$2"
+    local package_name=""
+
+    {
+        printf "# @Name: Default\n# @List: %s\n%s=(\n" "$list_name" "$list_name"
+        while IFS= read -r package_name; do
+            [[ -n "$package_name" ]] || continue
+            printf '  "%s"\n' "$package_name"
+        done
+        printf ")\n"
+    } > "$file"
+    gaudi::success "Wrote $file"
+}
 
 # One Brewfile covers taps, formulae, casks, Mac App Store apps, VS Code
 # extensions and the npm/go/cargo/uv packages Homebrew knows how to track.
@@ -23,42 +42,106 @@ backup_bundle() {
         return 0
     fi
 
-    brew bundle dump --describe --force "--file=$file" \
-        || gaudi::record_failure "brew bundle dump"
-    [[ -f "$file" ]] && gaudi::success "Wrote $file"
+    if ! brew bundle dump --force "--file=$file"; then
+        gaudi::record_failure "brew bundle dump"
+        return 0
+    fi
+
+    # Current Homebrew writes a description above each entry by default and
+    # rejects --describe; older versions only describe when asked to.
+    if ! grep -q '^#' "$file" && brew bundle dump --describe --force "--file=$file.described" >/dev/null 2>&1; then
+        mv "$file.described" "$file"
+    fi
+    rm -f "$file.described"
+
+    gaudi::success "Wrote $file"
     return 0
 }
 
 # Only packages the user asked for, not the whole base system
 backup_apt() {
-    local file="$BACKUP_DIR/default.apt.list.sh"
-    local package_name=""
-
     if ! gaudi::command_exists apt-mark; then
         gaudi::warn "Skipping apt backup: apt-mark is not available"
         return 0
     fi
 
-    {
-        printf "# @Name: Default\n# @List: aptList\naptList=(\n"
-        while IFS= read -r package_name; do
-            [[ -n "$package_name" ]] || continue
-            printf '  "%s"\n' "$package_name"
-        done < <(apt-mark showmanual 2>/dev/null | sort)
-        printf ")\n"
-    } > "$file"
-    gaudi::success "Wrote $file"
+    apt-mark showmanual 2>/dev/null | sort | write_list "$BACKUP_DIR/default.apt.list.sh" aptList
+}
+
+backup_dnf() {
+    if ! gaudi::command_exists dnf; then
+        gaudi::warn "Skipping dnf backup: dnf is not available"
+        return 0
+    fi
+
+    dnf repoquery --userinstalled --queryformat '%{name}\n' 2>/dev/null | sort -u | write_list "$BACKUP_DIR/default.dnf.list.sh" dnfList
+}
+
+# Gems installed into the user's gem directory (which is where Gaudi puts them)
+backup_gem() {
+    local gems=""
+
+    if ! gaudi::command_exists gem || ! gaudi::command_exists ruby; then
+        gaudi::warn "Skipping gem backup: ruby and gem are not available"
+        return 0
+    fi
+
+    gems="$(ruby -e 'Gem::Specification.dirs = [File.join(Gem.user_dir, "specifications")]; puts Gem::Specification.map(&:name).uniq.sort' 2>/dev/null || true)"
+    if [[ -z "$gems" ]]; then
+        gaudi::log "No user-installed gems to back up"
+        return 0
+    fi
+
+    printf "%s\n" "$gems" | write_list "$BACKUP_DIR/default.gem.list.sh" gemList
+}
+
+# Copy the files named in the templates' dotfiles.list (paths relative to the
+# home directory, one per line) into <backup>/dotfiles, keeping their layout.
+backup_dotfiles() {
+    local list=""
+    local entry=""
+    local copied=0
+
+    [[ -d "$GAUDI_TEMPLATES_LOCATION" ]] && list="$(find "$GAUDI_TEMPLATES_LOCATION" -type f -name "dotfiles.list" -print | sort | head -n 1)"
+    if [[ -z "$list" ]]; then
+        gaudi::log "No dotfiles.list in the templates: no dotfiles backed up"
+        return 0
+    fi
+
+    while IFS= read -r entry || [[ -n "$entry" ]]; do
+        entry="${entry%%#*}"
+        entry="${entry#"${entry%%[![:space:]]*}"}"
+        entry="${entry%"${entry##*[![:space:]]}"}"
+        [[ -n "$entry" ]] || continue
+
+        if [[ "$entry" == /* || "$entry" == *".."* ]]; then
+            gaudi::warn "Skipping '$entry' in $list: paths must be inside the home directory"
+            continue
+        fi
+        if [[ ! -e "$HOME/$entry" ]]; then
+            gaudi::warn "Skipping '$entry': not found in $HOME"
+            continue
+        fi
+
+        mkdir -p "$BACKUP_DIR/dotfiles/$(dirname "$entry")"
+        rm -rf "$BACKUP_DIR/dotfiles/${entry:?}"
+        cp -R "$HOME/$entry" "$BACKUP_DIR/dotfiles/$entry" || gaudi::record_failure "copying $entry"
+        copied=$((copied + 1))
+    done < "$list"
+
+    gaudi::success "Copied $copied dotfile(s) to $BACKUP_DIR/dotfiles"
 }
 
 gaudi::log "Writing backup to $BACKUP_DIR"
 
 get_os
-default_managers="bundle"
-[[ "${OS:-}" == "debian" ]] && default_managers="bundle apt"
+default_managers="bundle gem dotfiles"
+[[ "${OS:-}" == "debian" ]] && default_managers="bundle apt gem dotfiles"
+[[ "${OS:-}" == "fedora" ]] && default_managers="bundle dnf gem dotfiles"
 
 for manager in ${GAUDI_BACKUP_MANAGERS:-$default_managers}; do
     case "$manager" in
-        bundle|apt)
+        bundle|apt|dnf|gem|dotfiles)
             "backup_$manager"
             ;;
         brew|cask|tap|mas|npm|pip|go)

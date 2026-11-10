@@ -181,3 +181,84 @@ debian_step() {
     assert_failure 1
     assert_output_contains "Homebrew installation"
 }
+
+@test "Debian as root: Homebrew is not attempted, because it refuses to run as root" {
+    gaudi_sandbox debian
+    export GAUDI_ASSUME_YES="true" FAKE_UID=0
+
+    run debian_step
+    assert_success
+    assert_output_contains "Homebrew cannot be installed as root"
+    refute_called "curl -fsSL"
+    refute_file_exists "$FAKE_BREW_PREFIX/bin/brew"
+}
+
+@test "Debian as root without sudo: apt runs directly" {
+    gaudi_sandbox debian
+    remove_tool sudo
+    export FAKE_UID=0
+
+    run debian_step
+    assert_success
+    refute_called "sudo"
+    assert_file_contains "$MACHINE/apt.txt" "build-essential"
+}
+
+@test "Debian without sudo and without root: the missing privilege is reported" {
+    gaudi_sandbox debian
+    remove_tool sudo
+
+    run debian_step
+    assert_failure 1
+    assert_output_contains "This step needs root: install sudo or run Gaudi as root"
+    assert_output_contains "apt-get update"
+    refute_called "apt-get"
+}
+
+# --- Fedora ------------------------------------------------------------------------------
+
+fedora_step() {
+    step lib/fedora/install-pre-requisits.sh
+}
+
+@test "Fedora: the build prerequisites are installed with dnf" {
+    gaudi_sandbox fedora
+    run fedora_step
+    assert_success
+    assert_called "sudo dnf install -y gcc gcc-c++ make procps-ng file git"
+    assert_file_contains "$MACHINE/dnf.txt" "gcc"
+}
+
+@test "Fedora: curl is only installed when it is missing (the image's curl-minimal conflicts with it)" {
+    gaudi_sandbox fedora
+    run fedora_step
+    refute_called "git curl"
+
+    gaudi_sandbox fedora
+    remove_tool curl
+    run fedora_step
+    assert_called "sudo dnf install -y gcc gcc-c++ make procps-ng file git curl"
+}
+
+@test "Fedora: a failing prerequisite install is recorded" {
+    gaudi_sandbox fedora
+    export FAKE_DNF_FAIL="make"
+    run fedora_step
+    assert_failure 1
+    assert_output_contains "Fedora prerequisites (dnf install)"
+}
+
+@test "Fedora: Homebrew is offered to a regular user and skipped for root" {
+    gaudi_sandbox fedora
+    export GAUDI_ASSUME_YES="true"
+    run fedora_step
+    assert_success
+    assert_file_exists "$FAKE_BREW_PREFIX/bin/brew"
+
+    gaudi_sandbox fedora
+    export GAUDI_ASSUME_YES="true" FAKE_UID=0
+    run fedora_step
+    assert_success
+    assert_output_contains "Homebrew cannot be installed as root"
+    refute_called "curl -fsSL"
+}

@@ -36,6 +36,10 @@ gaudi::command_exists() {
     gaudi::find_command "$1" >/dev/null
 }
 
+gaudi::is_root() {
+    [[ "$(id -u 2>/dev/null || printf 1)" == "0" ]]
+}
+
 # True when a person can answer prompts
 gaudi::interactive() {
     [[ -t 0 ]]
@@ -91,7 +95,9 @@ get_os() {
         Linux)
             if gaudi::command_exists apt-get; then
                 OS="debian"
-            elif gaudi::command_exists dnf || gaudi::command_exists yum; then
+            elif gaudi::command_exists dnf; then
+                OS="fedora"
+            elif gaudi::command_exists yum; then
                 OS="centos"
             elif gaudi::command_exists zypper; then
                 OS="opensuse"
@@ -109,7 +115,7 @@ get_os() {
 
 gaudi::supported_os() {
     case "${OS:-}" in
-        osx|debian)
+        osx|debian|fedora)
             return 0
             ;;
         *)
@@ -296,8 +302,7 @@ gaudi::activate_brew() {
         line="eval \"\$($brew_bin shellenv)\""
     fi
 
-    # /usr/local/bin is already on the default PATH
-    [[ "$brew_bin" == "/usr/local/bin/brew" ]] || gaudi::append_once "$GAUDI_SETUP_PROFILE" "$line"
+    gaudi::append_once "$GAUDI_SETUP_PROFILE" "$line"
 }
 
 gaudi::install_cli() {

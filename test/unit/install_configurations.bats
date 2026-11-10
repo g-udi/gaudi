@@ -187,3 +187,16 @@ EOF
     assert_equal "$(applied)" "shared
 shared"
 }
+
+@test "Fedora applies fedora and shared configs through lib/fedora/configure.sh" {
+    gaudi_sandbox fedora
+    export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates" GAUDI_ASSUME_YES="true"
+    config "configs/a.configs.osx.sh" "mac-only"
+    config "configs/b.configs.fedora.sh" "fedora"
+    config "configs/c.configs.sh" "shared"
+
+    run step lib/fedora/configure.sh
+    assert_success
+    assert_equal "$(applied)" "fedora
+shared"
+}

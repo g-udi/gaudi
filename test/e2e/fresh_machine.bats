@@ -16,6 +16,13 @@ publish_repositories() {
     GAUDI_REPO_URL="file://$(gaudi_remote)"
     export GAUDI_REPO_URL
     export GAUDI_DEFAULT_TEMPLATES_URL="$TEMPLATES_REMOTE"
+
+    HELPER_REMOTE="$SANDBOX/remotes/gaudi-shell"
+    mkdir -p "$HELPER_REMOTE"
+    printf '#!/usr/bin/env bash\nprintf "gaudi-shell-setup %%s\\n" "$*" >> "$MACHINE/calls.log"\n' > "$HELPER_REMOTE/setup.sh"
+    chmod +x "$HELPER_REMOTE/setup.sh"
+    init_git_repo "$HELPER_REMOTE"
+    export GAUDI_HELPER_REPO_URL="$HELPER_REMOTE"
 }
 
 fresh_mac() {
@@ -91,7 +98,8 @@ post.gem"
 
     # Shell helpers and cleanup ran
     assert_file_exists "$HOME/.oh-my-zsh"
-    assert_file_exists "$HOME/.gaudi_bash"
+    assert_file_exists "$HOME/.gaudi-shell/setup.sh"
+    assert_called "gaudi-shell-setup --silent --shell zsh"
     assert_called "brew cleanup -s"
 
     # No terminal: the SSH key step was skipped rather than left hanging
@@ -231,4 +239,38 @@ shared-config"
     assert_equal "$(machine_snapshot)" ""
     assert_equal "$(calls | grep -v '^uname' || true)" ""
     [[ -L "$HOME/.local/bin/gaudi" ]]
+}
+
+@test "fresh Fedora: one command installs prerequisites, Homebrew, dnf and Brewfile software" {
+    gaudi_sandbox fedora
+    publish_repositories
+    printf '# @List: dnfList\ndnfList=( "tree" "htop" )\n' > "$TEMPLATES_REMOTE/lists/default.dnf.list.sh"
+    printf '_info="Fedora only config"\n_command() { printf "fedora-config\\n" >> "$MACHINE/configs.log"; }\n' > "$TEMPLATES_REMOTE/configs/selinux.configs.fedora.sh"
+    git -C "$TEMPLATES_REMOTE" add -A
+    git -C "$TEMPLATES_REMOTE" commit -q -m "fedora"
+
+    run install --yes
+    assert_success
+    assert_output_contains "[OK] Gaudi setup finished"
+    for package in gcc make git tree htop; do
+        assert_file_contains "$MACHINE/dnf.txt" "$package"
+    done
+    assert_file_contains "$MACHINE/brew/brew.txt" "jq"
+    assert_equal "$(sort "$MACHINE/configs.log")" "fedora-config
+shared-config"
+    assert_called "sudo dnf autoremove -y"
+    refute_called "apt-get"
+}
+
+@test "a root user on a server without sudo gets apt software, and Brewfiles are skipped with a reason" {
+    fresh_debian
+    remove_tool sudo
+    export FAKE_UID=0
+
+    run install --yes
+    assert_success
+    assert_output_contains "Homebrew cannot be installed as root"
+    assert_output_contains "Skipping 3 Brewfile(s): Homebrew is not available"
+    assert_file_contains "$MACHINE/apt.txt" "tree"
+    refute_called "sudo"
 }

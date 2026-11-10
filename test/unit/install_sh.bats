@@ -4,7 +4,7 @@
 bats_require_minimum_version 1.5.0
 load ../helper
 
-SKIP_ALL="--yes --skip-prereqs --skip-ssh --skip-templates --skip-software --skip-configs --skip-shell-helpers --skip-cleanup"
+SKIP_ALL="--yes --skip-prereqs --skip-ssh --skip-templates --skip-software --skip-configs --skip-shell-helpers --skip-dotfiles --skip-cleanup"
 
 setup() {
     gaudi_sandbox darwin
@@ -284,7 +284,7 @@ publish() {
     run install $SKIP_ALL
     assert_failure 1
     assert_file_exists "$HOME/.gaudi/setup.sh"
-    assert_output_contains "Gaudi currently automates macOS and Debian/Ubuntu"
+    assert_output_contains "Gaudi currently automates macOS, Debian/Ubuntu and Fedora"
 }
 
 # --- the documented one-liner ----------------------------------------------------------
@@ -302,4 +302,52 @@ publish() {
     run bash -c "$(cat "$GAUDI_ROOT/install.sh")" gaudi --no-such-flag
     assert_failure 64
     assert_output_contains "Unknown option: --no-such-flag"
+}
+
+# --- root without sudo (containers, minimal servers) -----------------------------------
+
+@test "Debian as root without sudo: the installer runs apt directly" {
+    gaudi_sandbox debian
+    remove_tool git sudo
+    export FAKE_UID=0
+
+    # shellcheck disable=SC2086
+    run -127 install $SKIP_ALL
+    assert_called "apt-get install -y ca-certificates curl git"
+    refute_called "sudo"
+}
+
+@test "Debian without sudo and without root: the installer says what is needed" {
+    gaudi_sandbox debian
+    remove_tool git sudo
+
+    # shellcheck disable=SC2086
+    run install $SKIP_ALL
+    assert_failure 1
+    assert_output_contains "This step needs root: install sudo or run this installer as root."
+    refute_called "apt-get"
+}
+
+# --- Fedora ------------------------------------------------------------------------------
+
+@test "Fedora without git installs it with dnf, leaving the image's curl alone" {
+    gaudi_sandbox fedora
+    remove_tool git
+
+    # shellcheck disable=SC2086
+    run -127 install $SKIP_ALL
+    assert_called "sudo dnf install -y git"
+    refute_called "curl git"
+}
+
+@test "Fedora without curl installs curl and git" {
+    gaudi_sandbox fedora
+    GAUDI_REPO_URL="file://$(gaudi_remote)"
+    export GAUDI_REPO_URL
+    remove_tool curl
+
+    # shellcheck disable=SC2086
+    run install $SKIP_ALL
+    assert_success
+    assert_called "sudo dnf install -y curl git"
 }

@@ -35,12 +35,12 @@ command -v brew >/dev/null 2>&1 || fail "Homebrew is required"
 installed && fail "$FORMULA is already installed: pick another formula with GAUDI_E2E_FORMULA"
 
 WORK="$(mktemp -d)"
-export HOME_BACKUP="$HOME"
 export GAUDI_BIN_DIR="$WORK/bin"
 export GAUDI_SETUP_PROFILE="$WORK/profile"
 export GAUDI_BUNDLE_NO_UPGRADE="true"
 export HOMEBREW_NO_AUTO_UPDATE=1
-SKIP="--yes --skip-prereqs --skip-ssh --skip-templates --skip-shell-helpers --skip-configs --skip-cleanup"
+export GAUDI_BACKUP_MANAGERS="bundle"
+SKIP="--yes --skip-prereqs --skip-ssh --skip-templates --skip-shell-helpers --skip-configs --skip-dotfiles --skip-cleanup"
 
 cleanup() {
     brew uninstall --ignore-dependencies "$FORMULA" >/dev/null 2>&1 || true
@@ -67,7 +67,13 @@ installed && fail "$FORMULA is still installed after removal"
 
 step "Restore from the backup"
 mkdir -p "$WORK/restore/lists"
-cp "$WORK/backup/Brewfile" "$WORK/restore/lists/Brewfile"
+if [[ -n "${CI:-}" ]]; then
+    # A throwaway runner: restore the whole backup
+    cp "$WORK/backup/Brewfile" "$WORK/restore/lists/Brewfile"
+else
+    # Someone's own Mac: restore only the test formula, touch nothing else
+    grep -E "^(tap |brew \"$FORMULA\")" "$WORK/backup/Brewfile" > "$WORK/restore/lists/Brewfile"
+fi
 # shellcheck disable=SC2086
 GAUDI_TEMPLATES_LOCATION="$WORK/restore" "$ROOT_DIR/setup.sh" $SKIP </dev/null
 installed || fail "$FORMULA was not restored"

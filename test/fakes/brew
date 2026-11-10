@@ -8,6 +8,10 @@
 #
 # Knobs (environment):
 #   FAKE_BREW_FAIL          space-separated entry names that fail to install
+#   FAKE_BREW_MISSING       space-separated names `brew info` does not know
+#   FAKE_BREW_DEPRECATED    space-separated names `brew info` reports as deprecated
+#   FAKE_BREW_DISABLED      space-separated names `brew info` reports as disabled
+#   FAKE_BREW_LEGACY        non-empty: behave like older Homebrew (descriptions need --describe)
 #   FAKE_BREW_DUMP_FAIL     non-empty: `brew bundle dump` fails
 #   FAKE_BREW_CLEANUP_FAIL  non-empty: `brew cleanup` fails
 set -u
@@ -109,7 +113,17 @@ bundle_dump() {
 
     file="$(file_argument "$@")"
     file="${file:-$PWD/Brewfile}"
-    has_argument --describe "$@" && describe=1
+    if [[ -n "${FAKE_BREW_LEGACY:-}" ]]; then
+        # Older Homebrew: descriptions only with --describe
+        has_argument --describe "$@" && describe=1
+    else
+        # Current Homebrew: descriptions by default, and the flag is gone
+        if has_argument --describe "$@"; then
+            printf 'Error: Calling the `--describe` switch is disabled! Use the default behaviour instead.\n' >&2
+            return 1
+        fi
+        describe=1
+    fi
 
     if [[ -e "$file" ]] && ! has_argument --force "$@"; then
         printf 'Error: %s already exists\n' "$file" >&2
@@ -147,6 +161,12 @@ case "$command_name" in
         case "$subcommand" in
             install) bundle_install "$@" ;;
             dump) bundle_dump "$@" ;;
+            list)
+                # A Brewfile with a line starting with INVALID does not parse
+                listed_file="$(file_argument "$@")"
+                grep -q '^INVALID' "$listed_file" 2>/dev/null && { printf 'Error: Invalid Brewfile\n' >&2; exit 1; }
+                exit 0
+                ;;
             *) exit 0 ;;
         esac
         ;;
@@ -185,6 +205,26 @@ case "$command_name" in
             # shellcheck disable=SC2016
             printf 'export PATH="%s:$PATH";\n' "$self_dir"
         fi
+        ;;
+    info)
+        # brew info --formula|--cask <name>
+        name=""
+        for arg in "$@"; do
+            case "$arg" in
+                -*) ;;
+                *) name="$arg" ;;
+            esac
+        done
+        case " ${FAKE_BREW_MISSING:-} " in
+            *" $name "*) printf 'Error: No available formula with the name "%s"\n' "$name" >&2; exit 1 ;;
+        esac
+        printf '==> %s: stable 1.0\n' "$name"
+        case " ${FAKE_BREW_DEPRECATED:-} " in
+            *" $name "*) printf 'Deprecated because it is not maintained upstream!\n' ;;
+        esac
+        case " ${FAKE_BREW_DISABLED:-} " in
+            *" $name "*) printf 'Disabled because it is not maintained upstream!\n' ;;
+        esac
         ;;
     --prefix)
         printf '%s\n' "${self_dir%/bin}"

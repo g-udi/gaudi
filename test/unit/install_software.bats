@@ -452,3 +452,123 @@ hook post-gem"
     assert_success
     assert_called "brew bundle install --file=$GAUDI/templates/Brewfile"
 }
+
+# --- picking packages one by one ---------------------------------------------------
+
+@test "pick_brewfile_entries keeps what is accepted, and every line that is not a package" {
+    write_file "$SANDBOX/source.Brewfile" <<'BREW'
+# @Name: Mixed
+cask_args appdir: "/Applications"
+tap "example/tap"
+
+# Lightweight JSON processor
+brew "jq"
+brew "tree"
+cask "kitty"
+mas "Amphetamine", id: 937984704
+BREW
+    interactive
+    export PICK_SOURCE="$SANDBOX/source.Brewfile" PICK_TARGET="$SANDBOX/picked.Brewfile"
+
+    # jq: y, tree: n, kitty: n, Amphetamine: y
+    run software 'gaudi::pick_brewfile_entries "$PICK_SOURCE" "$PICK_TARGET"' <<< "ynny"
+    assert_success
+    assert_output_contains "jq (brew)"
+    assert_output_contains "Description: Lightweight JSON processor"
+    assert_output_contains "Install kitty? [y/N]"
+    assert_equal "$(cat "$SANDBOX/picked.Brewfile")" '# @Name: Mixed
+cask_args appdir: "/Applications"
+tap "example/tap"
+
+# Lightweight JSON processor
+brew "jq"
+mas "Amphetamine", id: 937984704'
+}
+
+@test "pick_brewfile_entries shows a description only for the entry right below it" {
+    printf '# About jq\nbrew "jq"\nbrew "tree"\n' > "$SANDBOX/source.Brewfile"
+    export PICK_SOURCE="$SANDBOX/source.Brewfile" PICK_TARGET="$SANDBOX/picked.Brewfile"
+    run software 'gaudi::pick_brewfile_entries "$PICK_SOURCE" "$PICK_TARGET"'
+    assert_equal "$(grep -c 'Description:' <<< "$output")" "1"
+}
+
+@test "install_brewfile: answering no to 'everything' installs only the picked packages" {
+    printf '# @Name: Apps\ntap "example/tap"\ncask "raycast"\ncask "kitty"\ncask "figma"\n' | brewfile "lists/apps.Brewfile"
+    hook "hooks/post.bundle-apps.hooks.sh" "post-apps"
+    interactive
+
+    # install this Brewfile: y, everything: n, raycast: n, kitty: y, figma: n
+    run software 'gaudi::install_brewfile "$GAUDI_TEMPLATES_LOCATION/lists/apps.Brewfile"' <<< "ynnyn"
+    assert_success
+    assert_output_contains "Install everything in Apps? [Y/n]"
+    assert_equal "$(cat "$MACHINE/brew/cask.txt")" "kitty"
+    assert_file_contains "$MACHINE/brew/tap.txt" "example/tap"
+    assert_called "hook post-apps"
+}
+
+@test "install_brewfile: the temporary picked file is removed afterwards" {
+    printf 'cask "kitty"\n' | brewfile "lists/apps.Brewfile"
+    interactive
+    export TMPDIR="$SANDBOX/tmp"
+    mkdir -p "$TMPDIR"
+
+    run software 'gaudi::install_brewfile "$GAUDI_TEMPLATES_LOCATION/lists/apps.Brewfile"' <<< "yny"
+    assert_success
+    assert_file_contains "$MACHINE/brew/cask.txt" "kitty"
+    assert_equal "$(ls -A "$TMPDIR")" ""
+}
+
+@test "install_brewfile: Enter at 'everything' installs the whole Brewfile" {
+    printf 'cask "raycast"\ncask "kitty"\n' | brewfile "lists/apps.Brewfile"
+    interactive
+
+    run software 'gaudi::install_brewfile "$GAUDI_TEMPLATES_LOCATION/lists/apps.Brewfile"' <<< $'y\n'
+    assert_success
+    assert_called "brew bundle install --file=$GAUDI_TEMPLATES_LOCATION/lists/apps.Brewfile"
+    assert_file_contains "$MACHINE/brew/cask.txt" "raycast"
+    assert_file_contains "$MACHINE/brew/cask.txt" "kitty"
+}
+
+@test "install_brewfile: a failure while picking still names the real Brewfile" {
+    printf 'cask "kitty"\n' | brewfile "lists/apps.Brewfile"
+    interactive
+    export FAKE_BREW_FAIL="kitty"
+
+    run software 'gaudi::install_brewfile "$GAUDI_TEMPLATES_LOCATION/lists/apps.Brewfile"; gaudi::report_failures' <<< "yny"
+    assert_failure 1
+    assert_output_contains "rerun: brew bundle install --file=$GAUDI_TEMPLATES_LOCATION/lists/apps.Brewfile"
+}
+
+# --- Fedora ------------------------------------------------------------------------
+
+@test "step: dnf lists install on Fedora with their hooks around them" {
+    gaudi_sandbox fedora
+    export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates" GAUDI_ASSUME_YES="true"
+    printf '# @List: dnfList\ndnfList=( "tree" "htop" )\n' | write_file "$GAUDI_TEMPLATES_LOCATION/lists/default.dnf.list.sh"
+    printf '# @List: aptList\naptList=( "debian-only" )\n' | write_file "$GAUDI_TEMPLATES_LOCATION/lists/default.apt.list.sh"
+    hook "hooks/pre.dnf.hooks.sh" "pre-dnf"
+
+    run step lib/install-software.sh
+    assert_success
+    assert_equal "$(calls | grep -E '^(hook|dnf)')" "hook pre-dnf
+dnf install -y tree
+dnf install -y htop"
+    refute_called "debian-only"
+}
+
+@test "step: dnf lists are ignored on Debian and macOS" {
+    printf '# @List: dnfList\ndnfList=( "tree" )\n' | write_file "$GAUDI_TEMPLATES_LOCATION/lists/default.dnf.list.sh"
+    export GAUDI_ASSUME_YES="true"
+    run step lib/install-software.sh
+    assert_success
+    refute_called "dnf"
+}
+
+@test "installer_available_for_type knows dnf" {
+    run software 'gaudi::installer_available_for_type dnf'
+    assert_failure
+    gaudi_sandbox fedora
+    export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates" NO_TEMPLATES="$SANDBOX/no-templates"
+    run software 'gaudi::installer_available_for_type dnf'
+    assert_success
+}

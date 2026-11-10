@@ -171,12 +171,10 @@ detected_os() {
     assert_output_equals "debian"
 }
 
-@test "get_os: Linux with dnf is centos" {
-    gaudi_sandbox debian
-    remove_tool apt-get apt-mark
-    add_tool dnf
+@test "get_os: Linux with dnf is fedora" {
+    gaudi_sandbox fedora
     run detected_os
-    assert_output_equals "centos"
+    assert_output_equals "fedora"
 }
 
 @test "get_os: Linux with yum is centos" {
@@ -220,7 +218,9 @@ detected_os() {
     assert_output_equals "osx"
 }
 
-@test "supported_os accepts osx and debian only" {
+@test "supported_os accepts osx, debian and fedora only" {
+    run call eval 'OS=fedora; gaudi::supported_os'
+    assert_success
     run call eval 'OS=osx; gaudi::supported_os'
     assert_success
     run call eval 'OS=debian; gaudi::supported_os'
@@ -532,19 +532,19 @@ EOF
 # --- remote installer scripts --------------------------------------------------------------
 
 @test "run_remote_script downloads the script and runs it with its arguments" {
-    run call gaudi::run_remote_script bash "https://raw.githubusercontent.com/g-udi/gaudi-bash/master/install.sh" -s --basic
+    run call gaudi::run_remote_script sh "https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh" "" --unattended
     assert_success
-    assert_called "curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi-bash/master/install.sh"
-    assert_called "gaudi-bash-installer --basic"
-    assert_file_exists "$HOME/.gaudi_bash"
+    assert_called "curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh"
+    assert_called "oh-my-zsh-installer --unattended"
+    assert_file_exists "$HOME/.oh-my-zsh"
 }
 
 @test "run_remote_script fails when the download fails instead of running nothing" {
     export FAKE_CURL_FAIL=1
-    run call gaudi::run_remote_script bash "https://raw.githubusercontent.com/g-udi/gaudi-bash/master/install.sh"
+    run call gaudi::run_remote_script sh "https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh"
     assert_failure
-    assert_output_contains "Could not download https://raw.githubusercontent.com/g-udi/gaudi-bash/master/install.sh"
-    refute_file_exists "$HOME/.gaudi_bash"
+    assert_output_contains "Could not download https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh"
+    refute_file_exists "$HOME/.oh-my-zsh"
 }
 
 @test "run_remote_script returns the installer's own failure" {
@@ -602,4 +602,40 @@ EOF
     run call eval 'set +e; gaudi::source_guarded "$GUARDED_FILE"; false; printf "still-running\n"'
     assert_success
     assert_output_contains "still-running"
+}
+
+# --- running as root ------------------------------------------------------------------------
+
+@test "is_root follows the user id" {
+    run call gaudi::is_root
+    assert_failure
+    export FAKE_UID=0
+    run call gaudi::is_root
+    assert_success
+}
+
+@test "sudo uses the real sudo when it is installed" {
+    gaudi_sandbox debian
+    run call sudo apt-get update
+    assert_success
+    assert_called "sudo apt-get update"
+}
+
+@test "sudo runs the command directly for root on a machine without sudo" {
+    gaudi_sandbox debian
+    remove_tool sudo
+    export FAKE_UID=0
+    run call sudo apt-get install -y tree
+    assert_success
+    refute_called "sudo"
+    assert_file_contains "$MACHINE/apt.txt" "tree"
+}
+
+@test "sudo explains what is needed when there is neither sudo nor root" {
+    gaudi_sandbox debian
+    remove_tool sudo
+    run call sudo apt-get install -y tree
+    assert_failure 1
+    assert_output_contains "This step needs root: install sudo or run Gaudi as root"
+    refute_called "apt-get"
 }

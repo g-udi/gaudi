@@ -213,3 +213,49 @@ old_mac_with_software() {
     assert_success
     assert_equal "$(brew_state "$MACHINE")" "$old_brew"
 }
+
+@test "Fedora: a backup restores the dnf packages and the Homebrew packages" {
+    gaudi_sandbox fedora
+    use_machine old
+    OLD="$MACHINE"
+    standard_templates "$SANDBOX/templates"
+    printf '# @List: dnfList\ndnfList=( "tree" "htop" )\n' > "$SANDBOX/templates/lists/default.dnf.list.sh"
+    setup_from "$SANDBOX/templates" >/dev/null 2>&1
+    assert_file_contains "$OLD/dnf.txt" "tree"
+
+    run backup_to "$SANDBOX/backup"
+    assert_success
+    assert_file_contains "$SANDBOX/backup/default.dnf.list.sh" '"htop"'
+
+    use_machine new
+    run setup_from "$SANDBOX/backup"
+    assert_success
+    assert_equal "$(sort "$MACHINE/dnf.txt")" "$(sort "$OLD/dnf.txt")"
+    assert_equal "$(brew_state "$MACHINE")" "$(brew_state "$OLD")"
+}
+
+@test "a backup also carries gems and dotfiles to the new machine" {
+    gaudi_sandbox darwin
+    use_machine old
+    standard_templates "$SANDBOX/templates"
+    printf '.zshrc\n.config/kitty\n' > "$SANDBOX/templates/dotfiles.list"
+    setup_from "$SANDBOX/templates" >/dev/null 2>&1
+    printf 'font_size 14\n' | write_file "$HOME/.config/kitty/kitty.conf"
+    printf '\n# my own line\n' >> "$HOME/.zshrc"
+    old_profile="$(cat "$HOME/.zshrc")"
+
+    GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates" run backup_to "$SANDBOX/backup"
+    assert_success
+    assert_file_contains "$SANDBOX/backup/default.gem.list.sh" '"tmuxinator"'
+    assert_file_exists "$SANDBOX/backup/dotfiles/.zshrc"
+
+    use_machine new
+    run setup_from "$SANDBOX/backup"
+    assert_success
+    assert_file_contains "$MACHINE/gem.txt" "tmuxinator"
+    assert_file_contains "$HOME/.config/kitty/kitty.conf" "font_size 14"
+    assert_file_contains "$HOME/.zshrc" "# my own line"
+    # The profile Gaudi itself had just written on the new machine is kept aside
+    assert_file_exists "$HOME/.zshrc.gaudi-backup"
+    assert_equal "$(cat "$HOME/.zshrc")" "$old_profile"
+}

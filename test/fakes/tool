@@ -9,9 +9,12 @@
 #
 # Knobs (environment):
 #   FAKE_UNAME                 what `uname -s` prints (default Darwin)
+#   FAKE_UID                   what `id -u` prints (default 501; 0 is root)
 #   FAKE_APT_FAIL              space-separated packages apt-get cannot install
 #   FAKE_APT_UPDATE_FAIL       non-empty: `apt-get update` fails
 #   FAKE_APT_CLEAN_FAIL        non-empty: `apt-get autoremove` and `clean` fail
+#   FAKE_DNF_FAIL              space-separated packages dnf cannot install
+#   FAKE_DNF_CLEAN_FAIL        non-empty: `dnf autoremove` and `dnf clean` fail
 #   FAKE_GEM_FAIL              space-separated gems that fail to install
 #   FAKE_CURL_FAIL             non-empty: every download fails
 #   FAKE_HOMEBREW_INSTALL_FAIL non-empty: the Homebrew installer script fails
@@ -49,6 +52,10 @@ case "$tool" in
         exec "$@"
         ;;
 
+    id)
+        printf '%s\n' "${FAKE_UID:-501}"
+        ;;
+
     apt-get)
         subcommand="${1:-}"
         [[ $# -gt 0 ]] && shift
@@ -75,6 +82,41 @@ case "$tool" in
                 [[ -n "${FAKE_APT_CLEAN_FAIL:-}" ]] && exit 100
                 ;;
         esac
+        ;;
+
+    dnf)
+        subcommand="${1:-}"
+        [[ $# -gt 0 ]] && shift
+        case "$subcommand" in
+            install)
+                status=0
+                for package in "$@"; do
+                    case "$package" in
+                        -*) continue ;;
+                    esac
+                    if listed "${FAKE_DNF_FAIL:-}" "$package"; then
+                        printf 'Error: Unable to find a match: %s\n' "$package" >&2
+                        status=1
+                    else
+                        record dnf.txt "$package"
+                    fi
+                done
+                exit "$status"
+                ;;
+            repoquery)
+                [[ -f "$MACHINE/dnf.txt" ]] && sort "$MACHINE/dnf.txt"
+                exit 0
+                ;;
+            autoremove|clean)
+                [[ -n "${FAKE_DNF_CLEAN_FAIL:-}" ]] && exit 1
+                ;;
+        esac
+        ;;
+
+    ruby)
+        # Only used to list the gems in the user's gem directory
+        [[ -f "$MACHINE/gem.txt" ]] && sort -u "$MACHINE/gem.txt"
+        exit 0
         ;;
 
     apt-mark)
@@ -153,12 +195,6 @@ cp "$FAKES_DIR/brew" "$FAKE_BREW_PREFIX/bin/brew"
 chmod +x "$FAKE_BREW_PREFIX/bin/brew"
 touch "$MACHINE/clt"
 printf 'homebrew-installer NONINTERACTIVE=%s\n' "${NONINTERACTIVE:-}" >> "$MACHINE/calls.log"
-INSTALLER
-                ;;
-            *gaudi-bash*)
-                cat <<'INSTALLER'
-mkdir -p "$HOME/.gaudi_bash"
-printf 'gaudi-bash-installer %s\n' "$*" >> "$MACHINE/calls.log"
 INSTALLER
                 ;;
             *ohmyzsh*)

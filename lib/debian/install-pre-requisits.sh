@@ -13,7 +13,11 @@ sudo apt-get install -y \
     libssl-dev \
     procps || gaudi::record_failure "Debian prerequisites (apt-get install)"
 
-if ! gaudi::command_exists brew && gaudi::confirm "Install Homebrew on Linux? It is required for Brewfiles." "n"; then
+if gaudi::command_exists brew; then
+    :
+elif gaudi::is_root; then
+    gaudi::warn "Homebrew cannot be installed as root: run Gaudi as a regular user to install Brewfiles"
+elif gaudi::confirm "Install Homebrew on Linux? It is required for Brewfiles." "n"; then
     gaudi::run_remote_script /bin/bash "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh" \
         || gaudi::record_failure "Homebrew installation"
 fi

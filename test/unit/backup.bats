@@ -23,7 +23,8 @@ installed() {
 
     run "$CLI" backup "$SANDBOX/out"
     assert_success
-    assert_called "brew bundle dump --describe --force --file=$SANDBOX/out/Brewfile"
+    assert_called "brew bundle dump --force --file=$SANDBOX/out/Brewfile"
+    refute_called "--describe"
     assert_output_contains "[OK] Wrote $SANDBOX/out/Brewfile"
     assert_output_contains "[OK] Backup complete"
     assert_equal "$(cat "$SANDBOX/out/Brewfile")" 'tap "example/tap"
@@ -182,4 +183,84 @@ aptList=(
     assert_cwd_clean
     refute_file_exists "$HOME/.zshrc"
     refute_called "install"
+}
+
+# --- gems, dnf ---------------------------------------------------------------------------
+
+@test "backup writes the user-installed gems as a Gaudi list" {
+    printf 'tmuxinator\nbundler\n' > "$MACHINE/gem.txt"
+    run "$CLI" backup "$SANDBOX/out"
+    assert_success
+    assert_equal "$(cat "$SANDBOX/out/default.gem.list.sh")" '# @Name: Default
+# @List: gemList
+gemList=(
+  "bundler"
+  "tmuxinator"
+)'
+}
+
+@test "backup writes no gem list when there are no user-installed gems" {
+    run "$CLI" backup "$SANDBOX/out"
+    assert_success
+    assert_output_contains "No user-installed gems to back up"
+    refute_file_exists "$SANDBOX/out/default.gem.list.sh"
+}
+
+@test "backup without ruby skips gems with a warning" {
+    remove_tool ruby gem
+    export GAUDI_BACKUP_MANAGERS="gem"
+    run "$CLI" backup "$SANDBOX/out"
+    assert_success
+    assert_output_contains "Skipping gem backup: ruby and gem are not available"
+}
+
+@test "the gem list a backup writes is a list Gaudi can install" {
+    printf 'tmuxinator\n' > "$MACHINE/gem.txt"
+    "$CLI" backup "$SANDBOX/templates/lists" >/dev/null 2>&1
+    rm "$MACHINE/gem.txt"
+    export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates" GAUDI_ASSUME_YES="true"
+
+    run step lib/install-software.sh
+    assert_success
+    assert_file_contains "$MACHINE/gem.txt" "tmuxinator"
+}
+
+@test "Fedora backs up the packages installed by hand as a dnf list" {
+    gaudi_sandbox fedora
+    printf 'zsh\nhtop\n' > "$MACHINE/dnf.txt"
+
+    run "$CLI" backup "$SANDBOX/out"
+    assert_success
+    assert_called "dnf repoquery --userinstalled"
+    assert_equal "$(cat "$SANDBOX/out/default.dnf.list.sh")" '# @Name: Default
+# @List: dnfList
+dnfList=(
+  "htop"
+  "zsh"
+)'
+    refute_file_exists "$SANDBOX/out/default.apt.list.sh"
+}
+
+@test "asking for dnf on a machine without it is a warning" {
+    export GAUDI_BACKUP_MANAGERS="dnf"
+    run "$CLI" backup "$SANDBOX/out"
+    assert_success
+    assert_output_contains "Skipping dnf backup: dnf is not available"
+}
+
+@test "an older Homebrew, which only describes when asked, still gives a described Brewfile" {
+    export FAKE_BREW_LEGACY=1
+    installed brew/brew.txt "jq"
+    run "$CLI" backup "$SANDBOX/out"
+    assert_success
+    assert_called "brew bundle dump --describe --force --file=$SANDBOX/out/Brewfile.described"
+    assert_equal "$(cat "$SANDBOX/out/Brewfile")" '# Description of jq
+brew "jq"'
+    refute_file_exists "$SANDBOX/out/Brewfile.described"
+}
+
+@test "an empty machine backs up to an empty Brewfile without leaving temporary files" {
+    run "$CLI" backup "$SANDBOX/out"
+    assert_success
+    assert_equal "$(ls -A "$SANDBOX/out")" "Brewfile"
 }

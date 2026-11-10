@@ -15,13 +15,14 @@
 GAUDI_ROOT="$(cd "${BATS_TEST_DIRNAME}/../.." && pwd)"
 
 # Real tools the code under test is allowed to use
-_BASE_TOOLS="env cat sed grep find sort head tail tr wc mkdir rm rmdir cp mv ln ls touch chmod dirname basename readlink mktemp git awk tee cut uniq diff date sleep id xargs comm cmp expr true false pwd sh tar"
+_BASE_TOOLS="env cat sed grep find sort head tail tr wc mkdir rm rmdir cp mv ln ls touch chmod dirname basename readlink mktemp git awk tee cut uniq diff date sleep xargs tput comm cmp expr true false pwd sh tar"
 
-_COMMON_FAKES="uname sudo curl ssh-keygen ssh-add ssh-agent gem npm"
+_COMMON_FAKES="uname sudo id curl ssh-keygen ssh-add ssh-agent gem ruby npm"
 _DARWIN_FAKES="xcode-select defaults mas"
 _DEBIAN_FAKES="apt-get apt-mark"
+_FEDORA_FAKES="dnf"
 
-# gaudi_sandbox [darwin|debian]
+# gaudi_sandbox [darwin|debian|fedora]
 # darwin: Homebrew installed and on PATH, Command Line Tools installed.
 # debian: apt available, no Homebrew.
 gaudi_sandbox() {
@@ -49,6 +50,7 @@ gaudi_sandbox() {
     # tools against the original PATH and start from an empty machine.
     _REAL_PATH="${_REAL_PATH:-$PATH}"
     PATH="$_REAL_PATH"
+    _PYTHON3="$(type -P python3 || true)"
     _build_tool_cache
     rm -rf "$FAKEBIN" "$BASEBIN" "$MACHINE"
     mkdir -p "$HOME" "$MACHINE" "$WORK"
@@ -64,7 +66,7 @@ gaudi_sandbox() {
             export FAKE_UNAME="Darwin"
             : > "$MACHINE/clt"
             ;;
-        debian)
+        debian|fedora)
             export FAKE_UNAME="Linux"
             ;;
     esac
@@ -111,7 +113,7 @@ _build_tool_cache() {
     _TOOL_CACHE="${BATS_RUN_TMPDIR:-${BATS_TMPDIR:-/tmp}}/gaudi-tool-cache-$(basename "${GAUDI_TEST_BASH:-default}")"
     [[ -d "$_TOOL_CACHE/fakebin-debian" ]] && return 0
 
-    mkdir -p "$_TOOL_CACHE/basebin" "$_TOOL_CACHE/fakebin-darwin" "$_TOOL_CACHE/fakebin-debian.tmp"
+    mkdir -p "$_TOOL_CACHE/basebin" "$_TOOL_CACHE/fakebin-darwin" "$_TOOL_CACHE/fakebin-fedora" "$_TOOL_CACHE/fakebin-debian.tmp"
     for name in $_BASE_TOOLS; do
         real="$(type -P "$name" || true)"
         [[ -n "$real" ]] && ln -sf "$real" "$_TOOL_CACHE/basebin/$name"
@@ -122,6 +124,9 @@ _build_tool_cache() {
     FAKEBIN="$_TOOL_CACHE/fakebin-darwin"
     # shellcheck disable=SC2086
     add_tool $_COMMON_FAKES $_DARWIN_FAKES brew
+    FAKEBIN="$_TOOL_CACHE/fakebin-fedora"
+    # shellcheck disable=SC2086
+    add_tool $_COMMON_FAKES $_FEDORA_FAKES
     FAKEBIN="$_TOOL_CACHE/fakebin-debian.tmp"
     # shellcheck disable=SC2086
     add_tool $_COMMON_FAKES $_DEBIAN_FAKES
@@ -163,6 +168,17 @@ call() {
 # step <file>...: setup step(s) sourced like setup.sh does
 step() {
     bash "$GAUDI_ROOT/test/support/step" "$@"
+}
+
+# on_terminal "<answers>" <command> [args...]: run a command on a real
+# pseudo-terminal, typing one character of <answers> at each prompt.
+on_terminal() {
+    "$_PYTHON3" "$GAUDI_ROOT/test/support/pty" "$@"
+}
+
+# Skip a test that needs a pseudo-terminal when python3 is not available
+require_terminal() {
+    [[ -n "${_PYTHON3:-}" ]] || skip "python3 is needed to open a pseudo-terminal"
 }
 
 # Pretend a person is at the keyboard for the rest of this test
@@ -310,7 +326,7 @@ machine_snapshot() {
     local machine="${1:-$MACHINE}"
     local file=""
 
-    for file in "$machine"/brew/*.txt "$machine/apt.txt" "$machine/gem.txt"; do
+    for file in "$machine"/brew/*.txt "$machine/apt.txt" "$machine/dnf.txt" "$machine/gem.txt"; do
         [[ -f "$file" ]] || continue
         printf '[%s]\n' "${file#"$machine"/}"
         sort "$file"

@@ -18,7 +18,7 @@ shell_files() {
 # The scripts that make up Gaudi itself
 source_files() {
     find ./bin ./lib ./configs -type f \( -name '*.sh' -o -name 'gaudi' \) | sort
-    printf '%s\n' ./install.sh ./setup.sh ./backup.sh
+    printf '%s\n' ./install.sh ./setup.sh ./backup.sh ./check.sh
 }
 
 test_files() {
@@ -51,9 +51,14 @@ test_files() {
 }
 
 @test "entry points and test tools are executable" {
-    for file in install.sh setup.sh backup.sh bin/gaudi test/run test/fakes/brew test/fakes/tool test/support/call test/support/step test/real/debian.sh test/real/macos.sh; do
+    for file in install.sh setup.sh backup.sh check.sh bin/gaudi test/run test/fakes/brew test/fakes/tool test/support/call test/support/step test/support/pty test/real/linux.sh test/real/macos.sh; do
         [[ -x "$file" ]] || { echo "not executable: $file"; return 1; }
     done
+}
+
+@test "the pseudo-terminal helper is valid Python" {
+    command -v python3 >/dev/null 2>&1 || skip "python3 is not installed"
+    python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' test/support/pty
 }
 
 @test "every script has a bash shebang" {
@@ -105,9 +110,9 @@ test_files() {
 }
 
 @test "every GAUDI_* variable the code reads is documented in the README" {
-    variables="$(cat install.sh setup.sh backup.sh bin/gaudi bin/*.sh lib/*.sh lib/*/*.sh configs/*.sh \
+    variables="$(cat install.sh setup.sh backup.sh check.sh bin/gaudi bin/*.sh lib/*.sh lib/*/*.sh configs/*.sh \
         | grep -o 'GAUDI_[A-Z_]*' | sort -u \
-        | grep -v -e '^GAUDI_FAILURES$' -e '^GAUDI_SETUP_SHELL$' -e '^GAUDI_SHELL_')"
+        | grep -v -e '^GAUDI_FAILURES$' -e '^GAUDI_SETUP_SHELL$' -e '^GAUDI_SHELL_' -e '^GAUDI_$')"
     [[ -n "$variables" ]]
     missing=""
     for variable in $variables; do
@@ -117,9 +122,9 @@ test_files() {
 }
 
 @test "every GAUDI_* variable the code reads is used in a test" {
-    variables="$(cat install.sh setup.sh backup.sh bin/gaudi bin/*.sh lib/*.sh lib/*/*.sh configs/*.sh \
+    variables="$(cat install.sh setup.sh backup.sh check.sh bin/gaudi bin/*.sh lib/*.sh lib/*/*.sh configs/*.sh \
         | grep -o 'GAUDI_[A-Z_]*' | sort -u \
-        | grep -v -e '^GAUDI_FAILURES$' -e '^GAUDI_SHELL_')"
+        | grep -v -e '^GAUDI_FAILURES$' -e '^GAUDI_SHELL_' -e '^GAUDI_$')"
     missing=""
     for variable in $variables; do
         grep -rqF -- "$variable" test/unit test/e2e test/helper.bash || missing="$missing $variable"
@@ -128,13 +133,13 @@ test_files() {
 }
 
 @test "the code never reads gaudi-shell's GAUDI_SHELL or GAUDI_SHELL_PROFILE" {
-    ! grep -nE 'GAUDI_SHELL([^_A-Z]|$)|GAUDI_SHELL_PROFILE' install.sh setup.sh backup.sh bin/gaudi bin/*.sh lib/*.sh lib/*/*.sh configs/*.sh \
+    ! grep -nE 'GAUDI_SHELL([^_A-Z]|$)|GAUDI_SHELL_PROFILE' install.sh setup.sh backup.sh check.sh bin/gaudi bin/*.sh lib/*.sh lib/*/*.sh configs/*.sh \
         | grep -v '^bin/helpers.sh:.*#'
 }
 
 @test "installer downloads never use the pattern that hides a failed download" {
     # bash -c "$(curl ...)" runs an empty script, successfully, when curl fails
-    ! grep -nE '(bash|sh) -c "\$\(curl' install.sh setup.sh backup.sh bin/gaudi bin/*.sh lib/*.sh lib/*/*.sh configs/*.sh
+    ! grep -nE '(bash|sh) -c "\$\(curl' install.sh setup.sh backup.sh check.sh bin/gaudi bin/*.sh lib/*.sh lib/*/*.sh configs/*.sh
 }
 
 @test "loops that may prompt never read their list from stdin" {

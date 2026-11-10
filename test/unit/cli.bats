@@ -202,3 +202,17 @@ stub_checkout() {
     refute_file_exists "$HOME/.zshrc"
     refute_file_exists "$HOME/.local"
 }
+
+@test "check forwards its arguments to check.sh" {
+    copy="$(stub_checkout)"
+    printf '#!/usr/bin/env bash\nprintf "check-args:%%s\\n" "$*"\n' > "$copy/check.sh"
+    chmod +x "$copy/check.sh"
+    run "$copy/bin/gaudi" check "$SANDBOX/my templates" --online
+    assert_success
+    assert_output_contains "check-args:$SANDBOX/my templates --online"
+}
+
+@test "the usage lists check" {
+    run "$CLI" help
+    assert_output_contains "gaudi check [templates-dir] [--online]"
+}

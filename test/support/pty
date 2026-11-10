@@ -32,7 +32,7 @@ while True:
         sys.stdout.write(output.decode(errors="replace"))
         sys.stdout.write("\n[pty] timed out waiting for the command\n")
         sys.exit(124)
-    ready, _, _ = select.select([master], [], [], 0.2)
+    ready, _, _ = select.select([master], [], [], 0.1)
     if master in ready:
         try:
             chunk = os.read(master, 65536)

@@ -572,3 +572,48 @@ dnf install -y htop"
     run software 'gaudi::installer_available_for_type dnf'
     assert_success
 }
+
+# --- Arch and openSUSE ---------------------------------------------------------------
+
+@test "step: pacman lists install on Arch only" {
+    gaudi_sandbox arch
+    export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates" GAUDI_ASSUME_YES="true"
+    printf '# @List: pacmanList\npacmanList=( "tree" "htop" )\n' | write_file "$GAUDI_TEMPLATES_LOCATION/lists/default.pacman.list.sh"
+    printf '# @List: dnfList\ndnfList=( "fedora-only" )\n' | write_file "$GAUDI_TEMPLATES_LOCATION/lists/default.dnf.list.sh"
+    hook "hooks/post.pacman.hooks.sh" "post-pacman"
+
+    run step lib/install-software.sh
+    assert_success
+    assert_equal "$(calls | grep -E '^(hook|pacman)')" "pacman -S --noconfirm --needed tree
+pacman -S --noconfirm --needed htop
+hook post-pacman"
+    refute_called "fedora-only"
+}
+
+@test "step: zypper lists install on openSUSE only" {
+    gaudi_sandbox opensuse
+    export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates" GAUDI_ASSUME_YES="true"
+    printf '# @List: zypperList\nzypperList=( "tree" "htop" )\n' | write_file "$GAUDI_TEMPLATES_LOCATION/lists/default.zypper.list.sh"
+    printf '# @List: pacmanList\npacmanList=( "arch-only" )\n' | write_file "$GAUDI_TEMPLATES_LOCATION/lists/default.pacman.list.sh"
+
+    run step lib/install-software.sh
+    assert_success
+    assert_equal "$(calls | grep -E '^zypper')" "zypper --non-interactive install tree
+zypper --non-interactive install htop"
+    refute_called "arch-only"
+}
+
+@test "installer_available_for_type knows pacman and zypper" {
+    run software 'gaudi::installer_available_for_type pacman'
+    assert_failure
+    run software 'gaudi::installer_available_for_type zypper'
+    assert_failure
+    gaudi_sandbox arch
+    export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates" NO_TEMPLATES="$SANDBOX/no-templates"
+    run software 'gaudi::installer_available_for_type pacman'
+    assert_success
+    gaudi_sandbox opensuse
+    export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates" NO_TEMPLATES="$SANDBOX/no-templates"
+    run software 'gaudi::installer_available_for_type zypper'
+    assert_success
+}

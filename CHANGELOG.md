@@ -12,12 +12,12 @@ Software moves to Brewfiles. Templates written for 1.x need converting: `gaudi c
 - Hooks are named `pre|post.bundle[-<name>[.<topic>]].hooks.sh`.
 - `gaudi backup` writes one `Brewfile` instead of a list per package manager.
 - A failed package, hook or config no longer stops the run; failures are listed at the end and setup exits 1.
-- The shell helper offered is [gaudi-shell](https://github.com/g-udi/gaudi-shell), which replaced gaudi-bash.
+- The shell helper offered is [gaudi-shell](https://github.com/g-udi/gaudi-shell), which replaced gaudi-bash. Its command is `gshell`, so `gaudi` always means this tool.
 - `GAUDI_SETUP_SHELL` and `GAUDI_SETUP_PROFILE` replace the internal names that clashed with gaudi-shell's exported variables.
 
 ### Added
 
-- Fedora support (dnf lists, prerequisites, cleanup, backup).
+- Fedora, Arch and openSUSE support (dnf, pacman and zypper lists, prerequisites, cleanup, backup).
 - Dotfiles: `dotfiles.list` for backup, a `dotfiles/` directory restored by setup, `--skip-dotfiles`.
 - Ruby gems in the backup.
 - Package-by-package picking inside a Brewfile.
@@ -25,7 +25,7 @@ Software moves to Brewfiles. Templates written for 1.x need converting: `gaudi c
 - `gaudi doctor`, `gaudi version`, and a `gaudi` command linked into `~/.local/bin`.
 - Running as root, with or without `sudo` (containers, fresh servers).
 - `GAUDI_DRY_RUN`, `GAUDI_BUNDLE_NO_UPGRADE`, `GAUDI_BRANCH`, `GAUDI_SSH_EMAIL` and the other variables listed in the README.
-- A test suite (`test/run`): lint, unit and end-to-end tests on simulated machines, real runs in Debian and Fedora containers and on macOS, all run by GitHub Actions before a merge.
+- A test suite (`test/run`): lint, unit and end-to-end tests on simulated machines, real runs in Debian, Fedora, openSUSE and Arch containers and on macOS, all run by GitHub Actions before a merge.
 
 ### Fixed
 

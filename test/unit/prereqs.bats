@@ -262,3 +262,63 @@ fedora_step() {
     assert_output_contains "Homebrew cannot be installed as root"
     refute_called "curl -fsSL"
 }
+
+# --- Arch and openSUSE ---------------------------------------------------------------------
+
+@test "Arch: the package database is refreshed and the build prerequisites installed with pacman" {
+    gaudi_sandbox arch
+    run step lib/arch/install-pre-requisits.sh
+    assert_success
+    assert_called "sudo pacman -Sy --noconfirm --needed base-devel procps-ng curl file git"
+    assert_file_contains "$MACHINE/pacman.txt" "base-devel"
+}
+
+@test "Arch: a failing prerequisite install is recorded" {
+    gaudi_sandbox arch
+    export FAKE_PACMAN_FAIL="base-devel"
+    run step lib/arch/install-pre-requisits.sh
+    assert_failure 1
+    assert_output_contains "Arch prerequisites (pacman)"
+}
+
+@test "openSUSE: the build prerequisites are installed with zypper, without prompting" {
+    gaudi_sandbox opensuse
+    run step lib/opensuse/install-pre-requisits.sh
+    assert_success
+    assert_called "sudo zypper --non-interactive install gcc gcc-c++ make procps curl file git findutils diffutils"
+    assert_file_contains "$MACHINE/zypper.txt" "gcc-c++"
+}
+
+@test "openSUSE: a failing prerequisite install is recorded" {
+    gaudi_sandbox opensuse
+    export FAKE_ZYPPER_FAIL="make"
+    run step lib/opensuse/install-pre-requisits.sh
+    assert_failure 1
+    assert_output_contains "openSUSE prerequisites (zypper install)"
+}
+
+@test "offer_linuxbrew: declined by default, installed with --yes, skipped for root, left alone when present" {
+    gaudi_sandbox arch
+    run call gaudi::offer_linuxbrew
+    assert_success
+    assert_output_contains "Install Homebrew on Linux? It is required for Brewfiles. [y/N]"
+    refute_called "curl -fsSL"
+
+    export GAUDI_ASSUME_YES="true"
+    run call eval 'get_os; get_shell_type; gaudi::offer_linuxbrew'
+    assert_success
+    assert_file_exists "$FAKE_BREW_PREFIX/bin/brew"
+    assert_file_contains "$HOME/.zshrc" "brew shellenv"
+
+    gaudi_sandbox opensuse
+    export GAUDI_ASSUME_YES="true" FAKE_UID=0
+    run call gaudi::offer_linuxbrew
+    assert_output_contains "Homebrew cannot be installed as root"
+    refute_called "curl -fsSL"
+
+    gaudi_sandbox opensuse
+    add_tool brew
+    run call eval 'get_os; get_shell_type; gaudi::offer_linuxbrew'
+    assert_success
+    refute_output_contains "Install Homebrew on Linux?"
+}

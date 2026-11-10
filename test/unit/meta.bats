@@ -11,7 +11,7 @@ setup() {
 shell_files() {
     {
         find . -type f -name '*.sh' -not -path './templates/*' -not -path './test/deps/*' -not -path './.git/*'
-        printf '%s\n' ./bin/gaudi ./test/run ./test/fakes/brew ./test/fakes/tool ./test/support/call ./test/support/step ./test/helper.bash
+        printf '%s\n' ./bin/gaudi ./test/run ./test/fakes/brew ./test/fakes/tool ./test/support/call ./test/support/step ./test/support/run-file ./test/helper.bash
     } | sort -u
 }
 
@@ -51,7 +51,7 @@ test_files() {
 }
 
 @test "entry points and test tools are executable" {
-    for file in install.sh setup.sh backup.sh check.sh bin/gaudi test/run test/fakes/brew test/fakes/tool test/support/call test/support/step test/support/pty test/real/linux.sh test/real/macos.sh; do
+    for file in install.sh setup.sh backup.sh check.sh bin/gaudi test/run test/fakes/brew test/fakes/tool test/support/call test/support/step test/support/run-file test/support/pty test/real/linux.sh test/real/macos.sh; do
         [[ -x "$file" ]] || { echo "not executable: $file"; return 1; }
     done
 }
@@ -195,5 +195,5 @@ WORKFLOW=".github/workflows/tests.yml"
 
 @test "the sandbox detaches tests from the terminal, so no test waits for the keyboard" {
     grep -q '^    exec </dev/null$' test/helper.bash
-    grep -q '"${bats_files\[@\]}" </dev/null' test/run
+    grep -q '</dev/null$' test/support/run-file
 }

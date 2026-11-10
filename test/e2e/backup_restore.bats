@@ -259,3 +259,27 @@ old_mac_with_software() {
     assert_file_exists "$HOME/.zshrc.gaudi-backup"
     assert_equal "$(cat "$HOME/.zshrc")" "$old_profile"
 }
+
+@test "Arch and openSUSE: a backup restores the native packages and the Homebrew packages" {
+    for os in arch opensuse; do
+        manager="pacman"
+        [[ "$os" == "opensuse" ]] && manager="zypper"
+        gaudi_sandbox "$os"
+        use_machine "old-$os"
+        OLD="$MACHINE"
+        standard_templates "$SANDBOX/templates-$os"
+        printf '# @List: %sList\n%sList=( "tree" "htop" )\n' "$manager" "$manager" > "$SANDBOX/templates-$os/lists/default.$manager.list.sh"
+        setup_from "$SANDBOX/templates-$os" >/dev/null 2>&1
+        assert_file_contains "$OLD/$manager.txt" "tree"
+
+        run backup_to "$SANDBOX/backup-$os"
+        assert_success
+        assert_file_contains "$SANDBOX/backup-$os/default.$manager.list.sh" '"htop"'
+
+        use_machine "new-$os"
+        run setup_from "$SANDBOX/backup-$os"
+        assert_success
+        assert_equal "$(sort "$MACHINE/$manager.txt")" "$(sort "$OLD/$manager.txt")"
+        assert_equal "$(brew_state "$MACHINE")" "$(brew_state "$OLD")"
+    done
+}

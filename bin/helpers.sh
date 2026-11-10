@@ -97,10 +97,12 @@ get_os() {
                 OS="debian"
             elif gaudi::command_exists dnf; then
                 OS="fedora"
-            elif gaudi::command_exists yum; then
-                OS="centos"
+            elif gaudi::command_exists pacman; then
+                OS="arch"
             elif gaudi::command_exists zypper; then
                 OS="opensuse"
+            elif gaudi::command_exists yum; then
+                OS="centos"
             else
                 OS="linux"
             fi
@@ -115,7 +117,7 @@ get_os() {
 
 gaudi::supported_os() {
     case "${OS:-}" in
-        osx|debian|fedora)
+        osx|debian|fedora|arch|opensuse)
             return 0
             ;;
         *)
@@ -342,6 +344,23 @@ gaudi::source_if_exists() {
         source "$file"
     else
         gaudi::warn "Skipping missing step: $file"
+    fi
+}
+
+# Homebrew on Linux is optional: it is what installs Brewfiles there.
+# Homebrew refuses to run as root, so root only gets the distribution packages.
+gaudi::offer_linuxbrew() {
+    if gaudi::command_exists brew; then
+        :
+    elif gaudi::is_root; then
+        gaudi::warn "Homebrew cannot be installed as root: run Gaudi as a regular user to install Brewfiles"
+    elif gaudi::confirm "Install Homebrew on Linux? It is required for Brewfiles." "n"; then
+        gaudi::run_remote_script /bin/bash "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh" \
+            || gaudi::record_failure "Homebrew installation"
+    fi
+
+    if gaudi::command_exists brew; then
+        gaudi::activate_brew || gaudi::warn "Homebrew could not be loaded into this shell"
     fi
 }
 

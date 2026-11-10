@@ -274,3 +274,26 @@ shared-config"
     assert_file_contains "$MACHINE/apt.txt" "tree"
     refute_called "sudo"
 }
+
+@test "fresh Arch and fresh openSUSE: one command installs prerequisites, Homebrew, native lists and Brewfiles" {
+    for os in arch opensuse; do
+        gaudi_sandbox "$os"
+        use_machine "fresh-$os"
+        TEMPLATES_REMOTE="$SANDBOX/remotes/templates-$os"
+        standard_templates "$TEMPLATES_REMOTE"
+        manager="pacman"
+        [[ "$os" == "opensuse" ]] && manager="zypper"
+        printf '# @List: %sList\n%sList=( "tree" "htop" )\n' "$manager" "$manager" > "$TEMPLATES_REMOTE/lists/default.$manager.list.sh"
+        init_git_repo "$TEMPLATES_REMOTE"
+        GAUDI_REPO_URL="file://$(gaudi_remote)"
+        export GAUDI_REPO_URL GAUDI_DEFAULT_TEMPLATES_URL="$TEMPLATES_REMOTE"
+
+        run install --yes --skip-shell-helpers
+        assert_success
+        assert_output_contains "[OK] Gaudi setup finished"
+        assert_file_contains "$MACHINE/$manager.txt" "tree"
+        assert_file_contains "$MACHINE/$manager.txt" "git"
+        assert_file_contains "$MACHINE/brew/brew.txt" "jq"
+        assert_equal "$(cat "$MACHINE/configs.log")" "shared-config"
+    done
+}

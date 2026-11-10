@@ -21,7 +21,7 @@ stage() {
 stub_stages() {
     local os=""
 
-    for os in osx debian fedora; do
+    for os in osx debian fedora arch opensuse; do
         stage "lib/$os/install-pre-requisits.sh" "prereqs($os)"
         stage "lib/$os/configure.sh" "configs($os)"
         stage "lib/$os/cleanup.sh" "cleanup($os)"
@@ -153,6 +153,15 @@ stages() {
     assert_equal "$(stages)" "prereqs(fedora) ssh templates shell-helpers software configs(fedora) dotfiles cleanup(fedora)"
 }
 
+@test "Arch and openSUSE run their own stages" {
+    for os in arch opensuse; do
+        gaudi_sandbox "$os"
+        run "$COPY/setup.sh" --yes
+        assert_success
+        assert_equal "$(stages)" "prereqs($os) ssh templates shell-helpers software configs($os) dotfiles cleanup($os)"
+    done
+}
+
 @test "a Linux with only yum is reported as unsupported" {
     gaudi_sandbox debian
     remove_tool apt-get apt-mark
@@ -167,7 +176,7 @@ stages() {
         export FAKE_UNAME="$kernel"
         run "$COPY/setup.sh" --yes
         assert_failure 1
-        assert_output_contains "Gaudi currently automates macOS, Debian/Ubuntu and Fedora. Detected: unknown"
+        assert_output_contains "Gaudi currently automates macOS, Debian/Ubuntu, Fedora, Arch and openSUSE. Detected: unknown"
         assert_equal "$(stages)" ""
     done
 }

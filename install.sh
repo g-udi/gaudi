@@ -83,6 +83,10 @@ install_minimum_prerequisites() {
                     else
                         as_root dnf install -y curl git
                     fi
+                elif command_exists pacman; then
+                    as_root pacman -Sy --noconfirm --needed curl git
+                elif command_exists zypper; then
+                    as_root zypper --non-interactive install curl git
                 else
                     log "git and curl are required. Install them and rerun this installer."
                     exit 1

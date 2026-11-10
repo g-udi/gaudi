@@ -90,7 +90,7 @@ gaudi::log "Detected shell: ${GAUDI_SETUP_SHELL:-unknown}"
 gaudi::log "Shell profile: ${GAUDI_SETUP_PROFILE:-unknown}"
 
 gaudi::supported_os || {
-    gaudi::error "Gaudi currently automates macOS, Debian/Ubuntu and Fedora. Detected: ${OS:-unknown}"
+    gaudi::error "Gaudi currently automates macOS, Debian/Ubuntu, Fedora, Arch and openSUSE. Detected: ${OS:-unknown}"
     exit 1
 }
 

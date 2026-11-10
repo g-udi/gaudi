@@ -200,3 +200,20 @@ shared"
     assert_equal "$(applied)" "fedora
 shared"
 }
+
+@test "Arch and openSUSE apply their own and shared configs" {
+    # Runs lib/arch/configure.sh and lib/opensuse/configure.sh
+    for os in arch opensuse; do
+        gaudi_sandbox "$os"
+        export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates-$os" GAUDI_ASSUME_YES="true"
+        mkdir -p "$GAUDI_TEMPLATES_LOCATION"
+        config "configs/a.configs.fedora.sh" "fedora-only"
+        config "configs/b.configs.$os.sh" "$os"
+        config "configs/c.configs.sh" "shared"
+
+        run step "lib/$os/configure.sh"
+        assert_success
+        assert_equal "$(applied)" "$os
+shared"
+    done
+}

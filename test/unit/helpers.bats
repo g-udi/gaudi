@@ -185,6 +185,12 @@ detected_os() {
     assert_output_equals "centos"
 }
 
+@test "get_os: Linux with pacman is arch" {
+    gaudi_sandbox arch
+    run detected_os
+    assert_output_equals "arch"
+}
+
 @test "get_os: Linux with zypper is opensuse" {
     gaudi_sandbox debian
     remove_tool apt-get apt-mark
@@ -218,14 +224,18 @@ detected_os() {
     assert_output_equals "osx"
 }
 
-@test "supported_os accepts osx, debian and fedora only" {
+@test "supported_os accepts osx, debian, fedora, arch and opensuse only" {
+    run call eval 'OS=arch; gaudi::supported_os'
+    assert_success
+    run call eval 'OS=opensuse; gaudi::supported_os'
+    assert_success
     run call eval 'OS=fedora; gaudi::supported_os'
     assert_success
     run call eval 'OS=osx; gaudi::supported_os'
     assert_success
     run call eval 'OS=debian; gaudi::supported_os'
     assert_success
-    for os in centos opensuse linux unknown ""; do
+    for os in centos linux unknown ""; do
         OS_UNDER_TEST="$os" run call eval 'OS="$OS_UNDER_TEST"; gaudi::supported_os'
         assert_failure
     done

@@ -214,3 +214,27 @@ helper_repository() {
     assert_failure 1
     assert_output_contains "2 step(s) failed"
 }
+
+@test "Arch cleanup clears the pacman cache and records a failure" {
+    gaudi_sandbox arch
+    run step lib/arch/cleanup.sh
+    assert_success
+    assert_called "sudo pacman -Sc --noconfirm"
+
+    export FAKE_PACMAN_FAIL="cache"
+    run step lib/arch/cleanup.sh
+    assert_failure 1
+    assert_output_contains "pacman cache cleanup"
+}
+
+@test "openSUSE cleanup clears the zypper cache and records a failure" {
+    gaudi_sandbox opensuse
+    run step lib/opensuse/cleanup.sh
+    assert_success
+    assert_called "sudo zypper --non-interactive clean --all"
+
+    export FAKE_ZYPPER_FAIL="cache"
+    run step lib/opensuse/cleanup.sh
+    assert_failure 1
+    assert_output_contains "zypper cache cleanup"
+}

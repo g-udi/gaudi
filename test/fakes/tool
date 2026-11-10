@@ -15,6 +15,8 @@
 #   FAKE_APT_CLEAN_FAIL        non-empty: `apt-get autoremove` and `clean` fail
 #   FAKE_DNF_FAIL              space-separated packages dnf cannot install
 #   FAKE_DNF_CLEAN_FAIL        non-empty: `dnf autoremove` and `dnf clean` fail
+#   FAKE_PACMAN_FAIL           space-separated packages pacman cannot install ("cache": -Sc fails)
+#   FAKE_ZYPPER_FAIL           space-separated packages zypper cannot install ("cache": clean fails)
 #   FAKE_GEM_FAIL              space-separated gems that fail to install
 #   FAKE_CURL_FAIL             non-empty: every download fails
 #   FAKE_HOMEBREW_INSTALL_FAIL non-empty: the Homebrew installer script fails
@@ -111,6 +113,65 @@ case "$tool" in
                 [[ -n "${FAKE_DNF_CLEAN_FAIL:-}" ]] && exit 1
                 ;;
         esac
+        ;;
+
+    pacman)
+        case "${1:-}" in
+            -Qqe)
+                [[ -f "$MACHINE/pacman.txt" ]] && sort "$MACHINE/pacman.txt"
+                exit 0
+                ;;
+            -Sc)
+                [[ -n "${FAKE_PACMAN_FAIL:-}" ]] && listed "$FAKE_PACMAN_FAIL" "cache" && exit 1
+                exit 0
+                ;;
+            -S|-Sy)
+                status=0
+                for package in "$@"; do
+                    case "$package" in
+                        -*) continue ;;
+                    esac
+                    if listed "${FAKE_PACMAN_FAIL:-}" "$package"; then
+                        printf 'error: target not found: %s\n' "$package" >&2
+                        status=1
+                    else
+                        record pacman.txt "$package"
+                    fi
+                done
+                exit "$status"
+                ;;
+        esac
+        ;;
+
+    zypper)
+        status=0
+        mode=""
+        for argument in "$@"; do
+            case "$argument" in
+                install|clean|packages) mode="$argument" ;;
+                -*) ;;
+                *)
+                    if [[ "$mode" == "install" ]]; then
+                        if listed "${FAKE_ZYPPER_FAIL:-}" "$argument"; then
+                            printf "No provider of '%s' found.\n" "$argument" >&2
+                            status=104
+                        else
+                            record zypper.txt "$argument"
+                        fi
+                    fi
+                    ;;
+            esac
+        done
+        if [[ "$mode" == "packages" ]]; then
+            printf 'S  | Repository | Name | Version | Arch\n---+------------+------+---------+-----\n'
+            if [[ -f "$MACHINE/zypper.txt" ]]; then
+                while IFS= read -r package; do
+                    printf 'i+ | Main       | %s | 1.0 | noarch\n' "$package"
+                done < <(sort "$MACHINE/zypper.txt")
+            fi
+        fi
+        [[ "$mode" == "clean" && -n "${FAKE_ZYPPER_FAIL:-}" ]] && listed "$FAKE_ZYPPER_FAIL" "cache" && exit 1
+        exit "$status"
         ;;
 
     ruby)

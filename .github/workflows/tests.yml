@@ -40,12 +40,12 @@ jobs:
         run: test/run --every-bash
 
   real-linux:
-    name: real end-to-end (Debian and Fedora containers)
+    name: real end-to-end (Linux containers)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Install, back up, remove and restore real apt and dnf packages
+      - name: Install, back up, remove and restore real packages on Debian, Fedora, openSUSE and Arch
         run: test/run real
 
   real-macos:

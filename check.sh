@@ -45,8 +45,8 @@ TEMPLATES="$(cd "$TEMPLATES" && pwd)"
 errors=0
 warnings=0
 checked=0
-KNOWN_OSES="osx debian fedora"
-LIST_TYPES="apt dnf gem"
+KNOWN_OSES="osx debian fedora arch opensuse"
+LIST_TYPES="apt dnf pacman zypper gem"
 LEGACY_TYPES="tap brew cask mas npm pip go"
 SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/gaudi-check.XXXXXX")"
 trap 'rm -rf "$SCRATCH"' EXIT
@@ -179,7 +179,7 @@ while IFS= read -r hook; do
         if [[ "$base" == *".bundle-"* ]]; then
             problem "$hook" "never runs: no Brewfile matches its name (have: $(tr '\n' ' ' < "$SCRATCH/brewfile-names"))"
         else
-            problem "$hook" "never runs: the name is not pre|post.bundle[-<Brewfile>[.<topic>]].hooks.sh or pre|post.<apt|dnf|gem>.hooks.sh"
+            problem "$hook" "never runs: the name is not pre|post.bundle[-<Brewfile>[.<topic>]].hooks.sh or pre|post.<apt|dnf|pacman|zypper|gem>.hooks.sh"
         fi
     fi
 done < <(find "$TEMPLATES" -type f -name "*.hooks.sh" -print | sort)

@@ -9,7 +9,7 @@
 # not touched.
 #
 #   test/real/linux.sh                 Debian
-#   test/real/linux.sh fedora          Fedora
+#   test/real/linux.sh fedora          Fedora (also: arch, opensuse)
 #   GAUDI_E2E_IMAGE=ubuntu:24.04 test/real/linux.sh debian
 #
 # Invoked without Docker available, it reports SKIP and exits 0.
@@ -22,13 +22,17 @@ if [[ "${1:-}" != "--inside" ]]; then
     case "$DISTRO" in
         debian) IMAGE="${GAUDI_E2E_IMAGE:-debian:bookworm-slim}" ;;
         fedora) IMAGE="${GAUDI_E2E_IMAGE:-fedora:latest}" ;;
-        *) printf "Unknown distribution: %s (debian or fedora)\n" "$DISTRO" >&2; exit 64 ;;
+        opensuse) IMAGE="${GAUDI_E2E_IMAGE:-opensuse/tumbleweed:latest}" ;;
+        # The official Arch image only exists for x86-64; elsewhere it is emulated
+        arch) IMAGE="${GAUDI_E2E_IMAGE:-archlinux:latest}"; PLATFORM="${GAUDI_E2E_PLATFORM:-linux/amd64}" ;;
+        *) printf "Unknown distribution: %s (debian, fedora, arch or opensuse)\n" "$DISTRO" >&2; exit 64 ;;
     esac
     if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
         printf "SKIP: Docker is not available, the real %s run was not executed\n" "$DISTRO"
         exit 0
     fi
-    exec docker run --rm \
+    # shellcheck disable=SC2086
+    exec docker run --rm ${PLATFORM:+--platform "$PLATFORM"} \
         -v "$ROOT_DIR:/src:ro" \
         -e DEBIAN_FRONTEND=noninteractive \
         "$IMAGE" bash /src/test/real/linux.sh --inside "$DISTRO"
@@ -49,6 +53,16 @@ case "$DISTRO" in
         LIST_TYPE="dnf"
         LIST_NAME="dnfList"
         remove_packages() { dnf remove -y -q "$@" >/dev/null; }
+        ;;
+    arch)
+        LIST_TYPE="pacman"
+        LIST_NAME="pacmanList"
+        remove_packages() { pacman -Rns --noconfirm "$@" >/dev/null; }
+        ;;
+    opensuse)
+        LIST_TYPE="zypper"
+        LIST_NAME="zypperList"
+        remove_packages() { zypper --non-interactive remove "$@" >/dev/null; }
         ;;
 esac
 
@@ -104,8 +118,12 @@ printf 'demo = true\n' > "$TEMPLATES/dotfiles/.config/demo/settings.conf"
 printf '.config/demo\n' > "$TEMPLATES/dotfiles.list"
 export GAUDI_TEMPLATES_LOCATION="$TEMPLATES"
 
-step "The templates pass gaudi check"
-"$GAUDI/bin/gaudi" check "$TEMPLATES"
+if [[ "$DISTRO" == "arch" ]] && ! pacman -Sy --noconfirm >/dev/null 2>&1; then
+    # pacman's download sandbox cannot start when the container is emulated
+    # (an x86-64 image on an ARM host). A real Arch machine does not need this.
+    printf "pacman's sandbox does not work in this container (CPU emulation): disabling it for the test\n"
+    sed -i 's/^\[options\]/[options]\nDisableSandbox/' /etc/pacman.conf
+fi
 
 step "Full setup as root"
 "$GAUDI/setup.sh" --yes --skip-ssh --skip-templates --skip-shell-helpers </dev/null
@@ -117,6 +135,9 @@ have jq || fail "jq was not installed"
 [[ -f /tmp/os-config-applied ]] || fail "the $DISTRO config was not applied"
 [[ -f "$HOME/.config/demo/settings.conf" ]] || fail "the dotfile was not restored"
 [[ -L "$HOME/.local/bin/gaudi" ]] || fail "the gaudi CLI was not linked"
+
+step "The templates pass gaudi check"
+"$GAUDI/bin/gaudi" check "$TEMPLATES"
 
 step "The CLI works"
 "$HOME/.local/bin/gaudi" doctor

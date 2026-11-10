@@ -264,3 +264,39 @@ brew "jq"'
     assert_success
     assert_equal "$(ls -A "$SANDBOX/out")" "Brewfile"
 }
+
+@test "Arch backs up the explicitly installed packages as a pacman list" {
+    gaudi_sandbox arch
+    printf 'zsh\nhtop\n' > "$MACHINE/pacman.txt"
+    run "$CLI" backup "$SANDBOX/out"
+    assert_success
+    assert_called "pacman -Qqe"
+    assert_equal "$(cat "$SANDBOX/out/default.pacman.list.sh")" '# @Name: Default
+# @List: pacmanList
+pacmanList=(
+  "htop"
+  "zsh"
+)'
+}
+
+@test "openSUSE backs up the user-installed packages as a zypper list" {
+    gaudi_sandbox opensuse
+    printf 'zsh\nhtop\n' > "$MACHINE/zypper.txt"
+    run "$CLI" backup "$SANDBOX/out"
+    assert_success
+    assert_called "zypper --quiet packages --userinstalled"
+    assert_equal "$(cat "$SANDBOX/out/default.zypper.list.sh")" '# @Name: Default
+# @List: zypperList
+zypperList=(
+  "htop"
+  "zsh"
+)'
+}
+
+@test "asking for pacman or zypper on a machine without them is a warning" {
+    export GAUDI_BACKUP_MANAGERS="pacman zypper"
+    run "$CLI" backup "$SANDBOX/out"
+    assert_success
+    assert_output_contains "Skipping pacman backup: pacman is not available"
+    assert_output_contains "Skipping zypper backup: zypper is not available"
+}

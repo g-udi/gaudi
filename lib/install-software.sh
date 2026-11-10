@@ -10,6 +10,8 @@ GAUDI_TEMPLATES_LOCATION="${GAUDI_TEMPLATES_LOCATION:-${GAUDI:-$HOME/.gaudi}/tem
 softwareLists=(
     "debian|apt::sudo apt-get install -y"
     "fedora|dnf::sudo dnf install -y"
+    "arch|pacman::sudo pacman -S --noconfirm --needed"
+    "opensuse|zypper::sudo zypper --non-interactive install"
     "*|gem::gem_install_or_update install"
 )
 
@@ -48,6 +50,12 @@ gaudi::installer_available_for_type() {
             ;;
         dnf)
             gaudi::command_exists dnf
+            ;;
+        pacman)
+            gaudi::command_exists pacman
+            ;;
+        zypper)
+            gaudi::command_exists zypper
             ;;
         gem)
             gaudi::command_exists gem

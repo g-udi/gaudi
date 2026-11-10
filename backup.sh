@@ -77,6 +77,28 @@ backup_dnf() {
     dnf repoquery --userinstalled --queryformat '%{name}\n' 2>/dev/null | sort -u | write_list "$BACKUP_DIR/default.dnf.list.sh" dnfList
 }
 
+backup_pacman() {
+    if ! gaudi::command_exists pacman; then
+        gaudi::warn "Skipping pacman backup: pacman is not available"
+        return 0
+    fi
+
+    # -Qqe: explicitly installed packages, names only
+    pacman -Qqe 2>/dev/null | sort -u | write_list "$BACKUP_DIR/default.pacman.list.sh" pacmanList
+}
+
+backup_zypper() {
+    if ! gaudi::command_exists zypper; then
+        gaudi::warn "Skipping zypper backup: zypper is not available"
+        return 0
+    fi
+
+    # The table is "status | repository | name | version | arch"
+    zypper --quiet packages --userinstalled 2>/dev/null \
+        | awk -F'|' 'NF >= 5 && $1 ~ /i/ { gsub(/^[ \t]+|[ \t]+$/, "", $3); if ($3 != "" && $3 != "Name") print $3 }' \
+        | sort -u | write_list "$BACKUP_DIR/default.zypper.list.sh" zypperList
+}
+
 # Gems installed into the user's gem directory (which is where Gaudi puts them)
 backup_gem() {
     local gems=""
@@ -138,10 +160,12 @@ get_os
 default_managers="bundle gem dotfiles"
 [[ "${OS:-}" == "debian" ]] && default_managers="bundle apt gem dotfiles"
 [[ "${OS:-}" == "fedora" ]] && default_managers="bundle dnf gem dotfiles"
+[[ "${OS:-}" == "arch" ]] && default_managers="bundle pacman gem dotfiles"
+[[ "${OS:-}" == "opensuse" ]] && default_managers="bundle zypper gem dotfiles"
 
 for manager in ${GAUDI_BACKUP_MANAGERS:-$default_managers}; do
     case "$manager" in
-        bundle|apt|dnf|gem|dotfiles)
+        bundle|apt|dnf|pacman|zypper|gem|dotfiles)
             "backup_$manager"
             ;;
         brew|cask|tap|mas|npm|pip|go)

@@ -284,7 +284,7 @@ publish() {
     run install $SKIP_ALL
     assert_failure 1
     assert_file_exists "$HOME/.gaudi/setup.sh"
-    assert_output_contains "Gaudi currently automates macOS, Debian/Ubuntu and Fedora"
+    assert_output_contains "Gaudi currently automates macOS, Debian/Ubuntu, Fedora, Arch and openSUSE"
 }
 
 # --- the documented one-liner ----------------------------------------------------------
@@ -350,4 +350,24 @@ publish() {
     run install $SKIP_ALL
     assert_success
     assert_called "sudo dnf install -y curl git"
+}
+
+# --- Arch and openSUSE ---------------------------------------------------------------------
+
+@test "Arch without git installs curl and git with pacman" {
+    gaudi_sandbox arch
+    remove_tool git
+
+    # shellcheck disable=SC2086
+    run -127 install $SKIP_ALL
+    assert_called "sudo pacman -Sy --noconfirm --needed curl git"
+}
+
+@test "openSUSE without git installs curl and git with zypper" {
+    gaudi_sandbox opensuse
+    remove_tool git
+
+    # shellcheck disable=SC2086
+    run -127 install $SKIP_ALL
+    assert_called "sudo zypper --non-interactive install curl git"
 }

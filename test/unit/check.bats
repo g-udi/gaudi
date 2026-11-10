@@ -120,7 +120,7 @@ file() {
 @test "check: every hook name Gaudi runs is accepted" {
     printf 'brew "jq"\n' | file "lists/core.Brewfile"
     printf 'brew "jq2"\n' | file "Brewfile"
-    for name in pre.bundle post.bundle pre.bundle-core post.bundle-core post.bundle-core.asdf pre.bundle-default pre.apt post.apt pre.apt-docker post.gem pre.dnf; do
+    for name in pre.bundle post.bundle pre.bundle-core post.bundle-core post.bundle-core.asdf pre.bundle-default pre.apt post.apt pre.apt-docker post.gem pre.dnf post.pacman pre.zypper; do
         printf 'true\n' | file "hooks/$name.hooks.sh"
     done
     run check
@@ -168,12 +168,12 @@ file() {
 
 @test "check: a config for an unknown OS is an error" {
     printf '_info="x"\n_command() { true; }\n' | file "configs/a.configs.macos.sh"
-    for os in osx debian fedora; do
+    for os in osx debian fedora arch opensuse; do
         printf '_info="x"\n_command() { true; }\n' | file "configs/b.configs.$os.sh"
     done
     run check
     assert_failure 1
-    assert_output_contains "configs/a.configs.macos.sh: never runs: 'macos' is not one of: osx debian fedora"
+    assert_output_contains "configs/a.configs.macos.sh: never runs: 'macos' is not one of: osx debian fedora arch opensuse"
     assert_output_contains "1 error(s)"
 }
 

@@ -21,8 +21,10 @@ _COMMON_FAKES="uname sudo id curl ssh-keygen ssh-add ssh-agent gem ruby npm"
 _DARWIN_FAKES="xcode-select defaults mas"
 _DEBIAN_FAKES="apt-get apt-mark"
 _FEDORA_FAKES="dnf"
+_ARCH_FAKES="pacman"
+_OPENSUSE_FAKES="zypper"
 
-# gaudi_sandbox [darwin|debian|fedora]
+# gaudi_sandbox [darwin|debian|fedora|arch|opensuse]
 # darwin: Homebrew installed and on PATH, Command Line Tools installed.
 # debian: apt available, no Homebrew.
 gaudi_sandbox() {
@@ -66,7 +68,7 @@ gaudi_sandbox() {
             export FAKE_UNAME="Darwin"
             : > "$MACHINE/clt"
             ;;
-        debian|fedora)
+        debian|fedora|arch|opensuse)
             export FAKE_UNAME="Linux"
             ;;
     esac
@@ -113,7 +115,7 @@ _build_tool_cache() {
     _TOOL_CACHE="${BATS_RUN_TMPDIR:-${BATS_TMPDIR:-/tmp}}/gaudi-tool-cache-$(basename "${GAUDI_TEST_BASH:-default}")"
     [[ -d "$_TOOL_CACHE/fakebin-debian" ]] && return 0
 
-    mkdir -p "$_TOOL_CACHE/basebin" "$_TOOL_CACHE/fakebin-darwin" "$_TOOL_CACHE/fakebin-fedora" "$_TOOL_CACHE/fakebin-debian.tmp"
+    mkdir -p "$_TOOL_CACHE/basebin" "$_TOOL_CACHE/fakebin-darwin" "$_TOOL_CACHE/fakebin-fedora" "$_TOOL_CACHE/fakebin-arch" "$_TOOL_CACHE/fakebin-opensuse" "$_TOOL_CACHE/fakebin-debian.tmp"
     for name in $_BASE_TOOLS; do
         real="$(type -P "$name" || true)"
         [[ -n "$real" ]] && ln -sf "$real" "$_TOOL_CACHE/basebin/$name"
@@ -127,6 +129,12 @@ _build_tool_cache() {
     FAKEBIN="$_TOOL_CACHE/fakebin-fedora"
     # shellcheck disable=SC2086
     add_tool $_COMMON_FAKES $_FEDORA_FAKES
+    FAKEBIN="$_TOOL_CACHE/fakebin-arch"
+    # shellcheck disable=SC2086
+    add_tool $_COMMON_FAKES $_ARCH_FAKES
+    FAKEBIN="$_TOOL_CACHE/fakebin-opensuse"
+    # shellcheck disable=SC2086
+    add_tool $_COMMON_FAKES $_OPENSUSE_FAKES
     FAKEBIN="$_TOOL_CACHE/fakebin-debian.tmp"
     # shellcheck disable=SC2086
     add_tool $_COMMON_FAKES $_DEBIAN_FAKES
@@ -326,7 +334,7 @@ machine_snapshot() {
     local machine="${1:-$MACHINE}"
     local file=""
 
-    for file in "$machine"/brew/*.txt "$machine/apt.txt" "$machine/dnf.txt" "$machine/gem.txt"; do
+    for file in "$machine"/brew/*.txt "$machine/apt.txt" "$machine/dnf.txt" "$machine/pacman.txt" "$machine/zypper.txt" "$machine/gem.txt"; do
         [[ -f "$file" ]] || continue
         printf '[%s]\n' "${file#"$machine"/}"
         sort "$file"

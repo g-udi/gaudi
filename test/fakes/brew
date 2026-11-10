@@ -11,6 +11,8 @@
 #   FAKE_BREW_MISSING       space-separated names `brew info` does not know
 #   FAKE_BREW_DEPRECATED    space-separated names `brew info` reports as deprecated
 #   FAKE_BREW_DISABLED      space-separated names `brew info` reports as disabled
+#   FAKE_BREW_DISABLED_AFTER_DEPRECATION  same, in the wording Homebrew uses for a
+#                           package that was deprecated before it was disabled
 #   FAKE_BREW_LEGACY        non-empty: behave like older Homebrew (descriptions need --describe)
 #   FAKE_BREW_DUMP_FAIL     non-empty: `brew bundle dump` fails
 #   FAKE_BREW_CLEANUP_FAIL  non-empty: `brew cleanup` fails
@@ -224,6 +226,9 @@ case "$command_name" in
         esac
         case " ${FAKE_BREW_DISABLED:-} " in
             *" $name "*) printf 'Disabled because it is not maintained upstream!\n' ;;
+        esac
+        case " ${FAKE_BREW_DISABLED_AFTER_DEPRECATION:-} " in
+            *" $name "*) printf 'Deprecated because it is not maintained upstream! It was disabled on 2026-01-01.\n' ;;
         esac
         ;;
     --prefix)

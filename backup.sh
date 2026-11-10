@@ -108,7 +108,9 @@ backup_gem() {
         return 0
     fi
 
-    gems="$(ruby -e 'Gem::Specification.dirs = [File.join(Gem.user_dir, "specifications")]; puts Gem::Specification.map(&:name).uniq.sort' 2>/dev/null || true)"
+    # Read the gemspecs in the user directory directly: asking RubyGems for
+    # "all specifications" also returns the gems that ship with Ruby itself.
+    gems="$(ruby -e 'puts Dir[File.join(Gem.user_dir, "specifications", "*.gemspec")].map { |file| Gem::Specification.load(file) }.compact.map(&:name).uniq.sort' 2>/dev/null || true)"
     if [[ -z "$gems" ]]; then
         gaudi::log "No user-installed gems to back up"
         return 0

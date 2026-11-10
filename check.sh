@@ -263,7 +263,9 @@ if [[ "$ONLINE" == "true" ]]; then
                 cask) info="$(brew info --cask "$entry_name" 2>&1)" || { problem "$brewfile" "cask $entry_name was not found in Homebrew"; continue; } ;;
                 *) continue ;;
             esac
-            if [[ "$info" == *"Disabled because"* ]]; then
+            # Homebrew words a cask that was deprecated first as
+            # "Deprecated because ...! It was disabled on <date>."
+            if [[ "$info" == *"Disabled because"* || "$info" == *"It was disabled on"* ]]; then
                 problem "$brewfile" "$entry_name is disabled in Homebrew and can no longer be installed"
             elif [[ "$info" == *"Deprecated because"* ]]; then
                 concern "$brewfile" "$entry_name is deprecated in Homebrew and will stop installing"

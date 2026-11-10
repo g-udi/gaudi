@@ -273,3 +273,12 @@ file() {
     refute_called "brew info --formula other/tap/thing"
     assert_output_contains "0 error(s), 1 warning(s)"
 }
+
+@test "check --online: a package that was deprecated and then disabled counts as disabled" {
+    printf 'cask "qlthing"\n' | file "Brewfile"
+    export FAKE_BREW_DISABLED_AFTER_DEPRECATION="qlthing"
+    run check --online
+    assert_failure 1
+    assert_output_contains "qlthing is disabled in Homebrew and can no longer be installed"
+    refute_output_contains "deprecated"
+}

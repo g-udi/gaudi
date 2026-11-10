@@ -1,5 +1,7 @@
 # Gaudi
 
+[![tests](https://github.com/g-udi/gaudi/actions/workflows/tests.yml/badge.svg)](https://github.com/g-udi/gaudi/actions/workflows/tests.yml)
+
 ### _Gaudi: Craft Your Perfect Dev Environment_
 
  🏗️ Automate your machine setup
@@ -21,11 +23,12 @@ Anyone who has had to reconfigure a new system from scratch understands the pain
 
 It is a repetitive, manual process, and there is always a chance you will forget one or two critical steps, leaving your environment not quite right. Multiply that by each new device, and you are looking at a major time sink.
 
-Gaudi is a Bash-based command line tool for installing and setting up machines from reusable software lists, hooks, configuration scripts, and templates.
+Gaudi is a Bash-based command line tool that sets a machine up from a **templates** repository: [Brewfiles](https://docs.brew.sh/Brew-Bundle-and-Brewfile) for software, hooks, and configuration scripts.
 
 The main motivation behind Gaudi is:
 
 - Have a clean, reproducible way to set up a machine from scratch by installing all the software and packages needed.
+- Capture a machine with `gaudi backup` and reproduce it on the next one.
 - Share machine setups between users with [templates](https://github.com/g-udi/gaudi-templates).
 - Keep the bootstrapper predictable while still installing cleanly for Bash, Zsh, Fish, and POSIX-style login shells.
 
@@ -37,6 +40,14 @@ Install Gaudi from the command line:
 
 ```sh
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi/master/install.sh)"
+```
+
+The installer makes sure Git is available (on a fresh Mac it installs [Homebrew](https://brew.sh/), which brings the Xcode Command Line Tools), clones Gaudi into `~/.gaudi` and starts the setup. It works on the Bash 3.2 that ships with macOS; nothing needs to be installed first. On Debian/Ubuntu it needs `sudo`.
+
+Setup flags go after a name for the script:
+
+```sh
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi/master/install.sh)" gaudi --yes --skip-ssh
 ```
 
 You can also clone the repository manually and run setup:
@@ -52,31 +63,49 @@ Safe smoke setup that does not install packages, clone templates, or change mach
 ~/.gaudi/setup.sh --yes --skip-prereqs --skip-templates --skip-software --skip-configs --skip-shell-helpers --skip-ssh --skip-cleanup
 ```
 
+### Updating
+
+Run the installer again. It fetches the latest Gaudi, keeps your templates, and reruns the setup; everything already installed is left alone. If you changed files inside `~/.gaudi`, the installer keeps your version and tells you so instead of overwriting it.
+
 ## What does Gaudi do?
 
 Gaudi automates the setup path in separate, skippable stages:
 
 - **Install the prerequisites for the OS**: OS detection is automatic. macOS and Debian/Ubuntu have fully automated paths.
-- **Configure SSH**: Ensure SSH keys and Git access are ready before cloning template repositories.
+- **Configure SSH**: Offer to generate an SSH key when none exists (a key file or a key served by an agent), so private template repositories can be cloned.
 - **Configure Gaudi templates**: Clone or update the templates repository.
 - **Install shell helpers**: Suggest shell helpers such as [gaudi-bash](https://github.com/g-udi/gaudi-bash) or [oh-my-zsh](https://ohmyz.sh/).
-- **Install software lists**: Install packages from template list files.
+- **Install software**: Install the [Brewfiles](https://docs.brew.sh/Brew-Bundle-and-Brewfile) from the templates with `brew bundle`, plus apt and gem lists.
 - **Run configuration scripts**: Apply OS-specific or shared machine configuration scripts from templates.
 - **Clean up**: Run package-manager cleanup when requested.
 
 Every major stage can be skipped with a setup flag, so Gaudi can be used interactively, in a dry smoke setup, or as part of a more controlled machine provisioning flow.
 
+### How prompts are answered
+
+| How it is run | What happens at each prompt |
+| --- | --- |
+| In a terminal | You are asked: each Brewfile, each list, each configuration script |
+| With `--yes` | Everything is accepted |
+| Without a terminal and without `--yes` | The safe default is taken: templates are cloned or updated, nothing optional is installed |
+
+Generating an SSH key always needs a terminal, because it asks for an email and a passphrase; without one that step is skipped.
+
+### When something fails
+
+A package, hook or configuration script that fails does not stop the run. Gaudi carries on, prints every failure in a summary at the end and exits with status 1, so the same command can simply be run again after fixing them.
+
 ## CLI
 
 After setup, Gaudi installs a `gaudi` command into `${GAUDI_BIN_DIR:-$HOME/.local/bin}` and adds that directory to the detected shell profile when needed.
 
-```sh
-gaudi setup
-gaudi backup
-gaudi doctor
-gaudi version
-gaudi help
-```
+| Command | What it does |
+| --- | --- |
+| `gaudi setup [flags]` | Run the setup again |
+| `gaudi backup [output-dir]` | Capture the installed software (default: `./backup`) |
+| `gaudi doctor` | Show the install location, OS, shell, templates and whether Git and Homebrew are available; changes nothing |
+| `gaudi version` | Print the installed version |
+| `gaudi help` | Print the usage |
 
 Setup flags:
 
@@ -90,6 +119,65 @@ gaudi setup --skip-shell-helpers
 gaudi setup --skip-ssh
 gaudi setup --skip-cleanup
 ```
+
+To see what a run would do without doing it:
+
+```sh
+GAUDI_DRY_RUN=true gaudi setup --yes --skip-prereqs
+```
+
+## Backup and Restore
+
+Capture the software installed on the current machine:
+
+```sh
+gaudi backup
+gaudi backup ./backup
+```
+
+Backup writes a single `Brewfile` with `brew bundle dump --describe` (taps, formulae, casks, Mac App Store apps, VS Code extensions and the language packages Homebrew tracks, each with its description). On Debian/Ubuntu it also writes `default.apt.list.sh` with the packages you installed yourself (`apt-mark showmanual`).
+
+Limit what is backed up with `GAUDI_BACKUP_MANAGERS`:
+
+```sh
+GAUDI_BACKUP_MANAGERS="bundle" gaudi backup ./backup
+```
+
+To restore on another machine:
+
+1. Put the backup files in your templates repository (for example under `lists/`) and push it.
+2. On the new machine, run the installer and give it that repository when it asks for the templates URL, or set it up front:
+
+```sh
+GAUDI_DEFAULT_TEMPLATES_URL="git@github.com:you/your-templates.git" \
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi/master/install.sh)" gaudi --yes
+```
+
+A restore only adds software; it never removes what is already on the machine. If a package no longer exists, the rest is still restored and the failure is listed at the end.
+
+What a backup does not contain: Ruby gems, dotfiles, application settings and macOS preferences. Preferences belong in [configuration scripts](#configuration-scripts).
+
+## Environment Variables
+
+Every setup flag has a variable, and a few more settings only exist as variables:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `GAUDI` | `~/.gaudi` | Where Gaudi is installed |
+| `GAUDI_REPO_URL` | `https://github.com/g-udi/gaudi.git` | Repository the installer clones |
+| `GAUDI_BRANCH` | `master` | Branch the installer clones and updates |
+| `GAUDI_TEMPLATES_LOCATION` | `$GAUDI/templates` | Where the templates live |
+| `GAUDI_DEFAULT_TEMPLATES_URL` | `https://github.com/g-udi/gaudi-templates.git` | Templates repository offered at the prompt |
+| `GAUDI_ASSUME_YES` | `false` | Same as `--yes` |
+| `GAUDI_SKIP_PREREQS`, `GAUDI_SKIP_SSH`, `GAUDI_SKIP_TEMPLATES`, `GAUDI_SKIP_SHELL_HELPERS`, `GAUDI_SKIP_SOFTWARE`, `GAUDI_SKIP_CONFIGS`, `GAUDI_SKIP_CLEANUP` | `false` | Same as the matching `--skip-*` flag |
+| `GAUDI_DRY_RUN` | `false` | Print install commands, hooks and configs instead of running them |
+| `GAUDI_BUNDLE_NO_UPGRADE` | `false` | Install missing Brewfile entries without upgrading existing ones |
+| `GAUDI_TARGET_SHELL` | from `$SHELL` | Shell whose profile gets the `PATH` and Homebrew lines |
+| `GAUDI_SETUP_PROFILE` | per shell | Profile file to write to instead |
+| `GAUDI_BIN_DIR` | `~/.local/bin` | Where the `gaudi` command is linked |
+| `GAUDI_SSH_EMAIL` | asked | Email for a newly generated SSH key |
+| `GAUDI_BACKUP_MANAGERS` | `bundle` (plus `apt` on Debian) | What `gaudi backup` captures |
+| `GAUDI_BREW_BIN_DIRS` | the standard Homebrew locations | Colon-separated directories searched for a Homebrew that is not on `PATH` yet |
 
 ## Supported Systems and Shells
 
@@ -105,11 +193,104 @@ Shell profile support:
 - Fish: `.config/fish/config.fish`
 - POSIX-like fallback: `.profile`
 
-Set `GAUDI_TARGET_SHELL` to force profile installation for a shell other than `$SHELL`.
+Set `GAUDI_TARGET_SHELL` to force profile installation for a shell other than `$SHELL`, and `GAUDI_SETUP_PROFILE` to write to a specific profile file.
+
+## Templates
+
+Gaudi templates live at:
+
+```sh
+${GAUDI_TEMPLATES_LOCATION:-${GAUDI:-$HOME/.gaudi}/templates}
+```
+
+If the templates directory is a Git checkout, setup can update it with `git pull --ff-only`; when that fails (local changes, no network) the existing templates are used. If it is a non-Git directory, Gaudi keeps it and uses it without deleting user files.
+
+Default template repository:
+
+```sh
+https://github.com/g-udi/gaudi-templates.git
+```
+
+A templates repository holds Brewfiles, lists, hooks and configuration scripts. Gaudi finds them by file name, wherever they are in the repository. Templates are code that runs on your machine: only use a repository you trust.
+
+### Software: Brewfiles
+
+Software is declared in [Brewfiles](https://docs.brew.sh/Brew-Bundle-and-Brewfile) and installed with `brew bundle`, which is idempotent and keeps going when a single package fails. Gaudi finds every file named `Brewfile` or `<name>.Brewfile` in the templates, asks whether to install it, and runs it.
+
+One Brewfile can hold Homebrew taps, formulae and casks, Mac App Store apps, VS Code extensions, and npm, Go, Cargo and [uv](https://docs.astral.sh/uv/) packages:
+
+```ruby
+# @Name: Core tools
+# @Description: Command-line tools and libraries
+
+tap "koekeishiya/formulae"
+# Lightweight and flexible command-line JSON processor
+brew "jq"
+cask "raycast"
+mas "Amphetamine", id: 937984704
+npm "eslint"
+uv "pylint"
+```
+
+The two `@Name` / `@Description` comment lines are optional and only label the prompt. Split software into several Brewfiles (for example `core.Brewfile`, `apps.Brewfile`, `npm.Brewfile`) to accept or skip each group on its own.
+
+Set `GAUDI_BUNDLE_NO_UPGRADE=true` to install missing packages without upgrading the ones already there, and `GAUDI_DRY_RUN=true` to print the install commands, hooks and configuration scripts that would run without running any of them.
+
+### Software: lists for other package managers
+
+Package managers Homebrew does not drive keep the list format, a shell file with metadata and an array:
+
+```sh
+# @Name: Default
+# @Description: Debian packages
+# @List: aptList
+aptList=(
+  "build-essential"
+  "pkg-config::Manage compile and link flags for libraries"
+)
+```
+
+Supported list targets:
+
+- `apt`: Debian/Ubuntu packages, in files such as `default.apt.list.sh`
+- `gem`: Ruby gems, in files such as `default.gem.list.sh`
+
+Older `brew`, `cask`, `tap`, `mas`, `npm`, `pip` and `go` lists are no longer installed; setup prints a warning for each one it finds so it can be moved into a Brewfile. Python tools go in a Brewfile as `uv "<tool>"` entries, because `pip install --user` is refused by current Homebrew and Debian Pythons.
+
+### Hooks
+
+Hooks are shell scripts in the templates that Gaudi sources around the software steps. The file name decides when they run:
+
+| File name | Runs |
+| --- | --- |
+| `pre.bundle.hooks.sh` / `post.bundle.hooks.sh` | Before the first / after the last Brewfile |
+| `pre.bundle-<name>.hooks.sh` / `post.bundle-<name>.hooks.sh` | Around `<name>.Brewfile`, only if it was accepted |
+| `pre.bundle-<name>.<topic>.hooks.sh` / `post.bundle-<name>.<topic>.hooks.sh` | Same, when one Brewfile needs several hooks |
+| `pre.apt.hooks.sh`, `post.gem.hooks.sh`, ... | Around the apt and gem lists |
+
+Hooks run inside the setup, so they can use its helpers: `command_exists <tool>`, `gaudi::confirm "Question?" "n"` (which follows `--yes` and the no-terminal defaults), and `gaudi::record_failure "what failed"` to report a problem in the final summary.
+
+### Configuration Scripts
+
+Configuration scripts are discovered from templates using:
+
+```sh
+*.configs.<os>.sh
+*.configs.sh
+```
+
+where `<os>` is `osx` or `debian`; files without it apply to both. Each configuration script should define `_info` and `_command`:
+
+```sh
+_info="Show Finder path bar"
+_command() {
+  defaults write com.apple.finder ShowPathbar -bool true
+}
+```
+
+Setup first asks whether to apply all of them, and otherwise asks for each one, showing its `_info`.
 
 ## Behind the Scenes
-
-### Folder and File Structure
 
 ```text
 bin/
@@ -117,8 +298,7 @@ bin/
   colors.sh      terminal color detection
   commands.sh    command resolution wrappers
   helpers.sh     OS/shell/profile/template helpers
-  installer.sh   software-list installation logic
-  loaders.sh     compatibility loaders
+  installer.sh   Brewfile and software-list installation logic
 configs/
   configure-gaudi.sh
   configure-ssh.sh
@@ -135,115 +315,63 @@ lib/
   install-shell-helpers.sh
   install-software.sh
 test/
-  smoke.sh
+  run            test runner
+  unit/          unit tests (bats)
+  e2e/           end-to-end tests on simulated machines (bats)
+  real/          real end-to-end runs (Docker, CI)
+  fakes/         fake brew, apt, sudo, curl, ... for the simulated machines
+  support/       drivers that load the code the way setup.sh does
+  helper.bash    the sandbox every test runs in
+.github/workflows/tests.yml
 install.sh
 setup.sh
 backup.sh
 ```
 
-### Templates
-
-Gaudi templates live at:
+## Testing
 
 ```sh
-${GAUDI_TEMPLATES_LOCATION:-${GAUDI:-$HOME/.gaudi}/templates}
+test/run                # lint + unit + end-to-end (about a minute and a half)
+test/run unit           # one suite: lint, unit, e2e or real
+test/run --every-bash   # also under /bin/bash, the 3.2 that ships with macOS
+test/run real           # real end-to-end run in a Docker container
+test/run e2e --filter "backup"
 ```
 
-If the templates directory is a Git checkout, setup can update it with `git pull --ff-only`. If it is a non-Git directory, Gaudi keeps it and uses it without deleting user files.
+The suite is written with [bats-core](https://github.com/bats-core/bats-core). The runner uses `bats` from `PATH` (`brew install bats-core`, `apt-get install bats`), or the copy in a sibling [gaudi-shell](https://github.com/g-udi/gaudi-shell) checkout.
 
-Default template repository:
+| Suite | What it covers |
+| --- | --- |
+| `lint` | Bash syntax (also under bash 3.2), [ShellCheck](https://www.shellcheck.net/), and checks that every script, library function, setup flag and `GAUDI_*` variable is both tested and documented |
+| `unit` | Every function and every setup step on its own: prompts, OS and shell detection, Brewfile and list installation, hooks, configs, SSH, templates, prerequisites, the CLI, the installer, backup |
+| `e2e` | The real `install.sh`, `setup.sh` and `gaudi backup` on simulated machines: a fresh Mac and a fresh Debian from the one-line installer, backup on one machine and restore on another, failures and reruns |
+| `real` | Nothing simulated: a Debian container where real `apt` installs packages, they are backed up, removed and restored. `test/real/macos.sh` does the same with the real Homebrew and only runs in CI or with `GAUDI_E2E_REAL_MACOS=1` |
 
-```sh
-https://github.com/g-udi/gaudi-templates.git
-```
+Unit and end-to-end tests never touch the machine they run on. Each test gets a throwaway home directory and a `PATH` that holds only fake tools (`test/fakes`: brew, apt, sudo, curl, ssh-keygen, ...) and a whitelist of coreutils. The fake package managers record what they "install", which is how a restored machine is compared with the one that was backed up.
 
-Templates are shell scripts that can describe package lists, hooks, and machine configuration commands.
+### Continuous integration
 
-### Software Lists
+[GitHub Actions](https://github.com/g-udi/gaudi/actions/workflows/tests.yml) runs on every pull request, on every push to `master`, and in the merge queue:
 
-Software list files are shell files with metadata and an array:
+| Job | Runs |
+| --- | --- |
+| `suite` | `test/run --every-bash` on macOS and Ubuntu |
+| `real-debian` | `test/run real`: real apt in a Debian container |
+| `real-macos` | `test/real/macos.sh`: a real formula installed, backed up, removed and restored with Homebrew |
+| `tests passed` | Succeeds only when all of the above did |
 
-```sh
-# @Name: Default
-# @Description: Core Homebrew formulae
-# @List: brewList
-export brewList=(
-  "git::Distributed version control"
-  "jq::Command-line JSON processor"
-)
-```
+To block merging until the tests pass, require the `tests passed` check on `master` (repository Settings, Branches or Rulesets). It is one check, so the rule does not need changing when jobs are added.
 
-Supported list targets:
+### Rules the code follows
 
-- `apt`: Debian/Ubuntu packages, matching files such as `default.apt-get.sh`
-- `tap`: Homebrew taps
-- `brew`: Homebrew formulae
-- `cask`: Homebrew casks on macOS
-- `mas`: Mac App Store apps on macOS
-- `npm`: global npm packages
-- `pip`: user Python packages through `python3 -m pip`
-- `go`: Go packages through `go install`
-- `gem`: Ruby gems
+These are enforced by the suite; they are listed here because each one was a real bug.
 
-Hooks run before or after software lists:
-
-```sh
-pre.<target>.hooks.sh
-post.<target>.hooks.sh
-```
-
-Examples:
-
-```sh
-pre.brew.hooks.sh
-post.npm.hooks.sh
-pre.apt.hooks.sh
-```
-
-Combining hooks with template-based installation gives you control over the exact setup process without editing Gaudi itself.
-
-### Configuration Scripts
-
-Configuration scripts are discovered from templates using:
-
-```sh
-*.configs.<os>.sh
-*.configs.sh
-```
-
-Each configuration script should define `_info` and `_command`:
-
-```sh
-_info="Show Finder path bar"
-_command() {
-  defaults write com.apple.finder ShowPathbar -bool true
-}
-```
-
-## Backup
-
-Generate software list files from the current machine:
-
-```sh
-gaudi backup
-gaudi backup ./backup
-```
-
-Backup writes list files for available package managers and skips missing tools cleanly. You can limit backup managers with `GAUDI_BACKUP_MANAGERS`, for example:
-
-```sh
-GAUDI_BACKUP_MANAGERS="brew cask npm" gaudi backup ./backup
-```
-
-## Validation
-
-Run the smoke suite before committing changes:
-
-```sh
-./test/smoke.sh
-```
-
-It checks Bash syntax, ShellCheck when available, CLI dispatch, cross-shell profile installation for Fish, template software-list installation in dry-run mode, and backup generation.
+- **Bash 3.2 compatible.** A fresh Mac only has Bash 3.2: no associative arrays, no `mapfile`, and empty arrays are an error under `set -u`.
+- **Sourcing template files goes through `gaudi::source_guarded`.** On Bash 3.2, `source file || handle` still ends the run when a command in the file fails.
+- **Loops that prompt read their list on their own file descriptor** (`while read -u 3 ...; done 3< <(...)`), otherwise the prompt reads the list instead of the keyboard.
+- **Installer scripts are downloaded with `gaudi::run_remote_script`**, never `bash -c "$(curl ...)"`, which runs an empty script successfully when the download fails.
+- **Nothing reads `GAUDI_SHELL` or `GAUDI_SHELL_PROFILE`.** Those belong to [gaudi-shell](https://github.com/g-udi/gaudi-shell) and are exported wherever it is loaded.
+- **A failure is recorded with `gaudi::record_failure`, not allowed to abort.**
 
 ## Credits & Inspirations
 

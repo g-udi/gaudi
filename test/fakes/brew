@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# Fake Homebrew for the test suite.
+#
+# It keeps the "installed software" of a simulated machine in
+# $MACHINE/brew/<type>.txt (one entry per line), so tests can install from a
+# Brewfile, dump the machine back into a Brewfile, and compare machines.
+#
+# Knobs (environment):
+#   FAKE_BREW_FAIL          space-separated entry names that fail to install
+#   FAKE_BREW_DUMP_FAIL     non-empty: `brew bundle dump` fails
+#   FAKE_BREW_CLEANUP_FAIL  non-empty: `brew cleanup` fails
+set -u
+
+MACHINE="${MACHINE:?the fake brew needs MACHINE}"
+state="$MACHINE/brew"
+mkdir -p "$state"
+printf 'brew %s\n' "$*" >> "$MACHINE/calls.log"
+
+self_dir="$(cd "$(dirname "$0")" && pwd)"
+types="tap brew cask mas npm uv go cargo vscode"
+
+should_fail() {
+    case " ${FAKE_BREW_FAIL:-} " in
+        *" $1 "*) return 0 ;;
+    esac
+    return 1
+}
+
+add_entry() {
+    local type="$1"
+    local entry="$2"
+
+    touch "$state/$type.txt"
+    grep -Fxq -- "$entry" "$state/$type.txt" || printf '%s\n' "$entry" >> "$state/$type.txt"
+}
+
+file_argument() {
+    local arg=""
+
+    for arg in "$@"; do
+        case "$arg" in
+            --file=*) printf '%s' "${arg#--file=}" ;;
+        esac
+    done
+}
+
+has_argument() {
+    local wanted="$1"
+    local arg=""
+    shift
+
+    for arg in "$@"; do
+        [[ "$arg" == "$wanted" ]] && return 0
+    done
+    return 1
+}
+
+bundle_install() {
+    local file=""
+    local line=""
+    local type=""
+    local name=""
+    local rest=""
+    local failed=0
+    local entry_re='^[[:space:]]*(tap|brew|cask|mas|npm|uv|go|cargo|vscode)[[:space:]]+"([^"]+)"(.*)$'
+    local id_re='id:[[:space:]]*([0-9]+)'
+
+    file="$(file_argument "$@")"
+    if [[ -z "$file" || ! -f "$file" ]]; then
+        printf 'Error: No Brewfile found\n' >&2
+        return 1
+    fi
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" =~ $entry_re ]] || continue
+        type="${BASH_REMATCH[1]}"
+        name="${BASH_REMATCH[2]}"
+        rest="${BASH_REMATCH[3]}"
+
+        if should_fail "$name"; then
+            printf 'Installing %s has failed!\n' "$name" >&2
+            failed=1
+            continue
+        fi
+
+        if [[ "$type" == "mas" && "$rest" =~ $id_re ]]; then
+            add_entry mas "$name|${BASH_REMATCH[1]}"
+        else
+            add_entry "$type" "$name"
+        fi
+        printf 'Installing %s\n' "$name"
+    done < "$file"
+
+    if [[ "$failed" -ne 0 ]]; then
+        printf 'Homebrew Bundle failed! Some Brewfile dependencies failed to install.\n' >&2
+        return 1
+    fi
+    printf 'Homebrew Bundle complete!\n'
+}
+
+bundle_dump() {
+    local file=""
+    local type=""
+    local entry=""
+    local describe=0
+
+    [[ -n "${FAKE_BREW_DUMP_FAIL:-}" ]] && return 1
+
+    file="$(file_argument "$@")"
+    file="${file:-$PWD/Brewfile}"
+    has_argument --describe "$@" && describe=1
+
+    if [[ -e "$file" ]] && ! has_argument --force "$@"; then
+        printf 'Error: %s already exists\n' "$file" >&2
+        return 1
+    fi
+
+    : > "$file"
+    for type in $types; do
+        [[ -s "$state/$type.txt" ]] || continue
+        while IFS= read -r entry; do
+            [[ -n "$entry" ]] || continue
+            case "$type" in
+                mas)
+                    printf 'mas "%s", id: %s\n' "${entry%%|*}" "${entry##*|}" >> "$file"
+                    ;;
+                brew|cask)
+                    [[ "$describe" -eq 1 ]] && printf '# Description of %s\n' "$entry" >> "$file"
+                    printf '%s "%s"\n' "$type" "$entry" >> "$file"
+                    ;;
+                *)
+                    printf '%s "%s"\n' "$type" "$entry" >> "$file"
+                    ;;
+            esac
+        done < <(sort "$state/$type.txt")
+    done
+}
+
+command_name="${1:-}"
+[[ $# -gt 0 ]] && shift
+
+case "$command_name" in
+    bundle)
+        subcommand="${1:-install}"
+        [[ $# -gt 0 ]] && shift
+        case "$subcommand" in
+            install) bundle_install "$@" ;;
+            dump) bundle_dump "$@" ;;
+            *) exit 0 ;;
+        esac
+        ;;
+    install)
+        status=0
+        for package in "$@"; do
+            case "$package" in
+                -*) continue ;;
+            esac
+            if should_fail "$package"; then
+                printf 'Error: No available formula with the name "%s"\n' "$package" >&2
+                status=1
+            else
+                add_entry brew "$package"
+            fi
+        done
+        exit "$status"
+        ;;
+    list)
+        [[ -f "$state/brew.txt" ]] && cat "$state/brew.txt"
+        exit 0
+        ;;
+    tap)
+        if [[ $# -gt 0 ]]; then
+            add_entry tap "$1"
+        elif [[ -f "$state/tap.txt" ]]; then
+            cat "$state/tap.txt"
+        fi
+        ;;
+    shellenv)
+        if [[ "${1:-}" == "fish" ]]; then
+            printf 'set -gx HOMEBREW_PREFIX "%s";\n' "${self_dir%/bin}"
+            printf 'fish_add_path -gP "%s";\n' "$self_dir"
+        else
+            printf 'export HOMEBREW_PREFIX="%s";\n' "${self_dir%/bin}"
+            # shellcheck disable=SC2016
+            printf 'export PATH="%s:$PATH";\n' "$self_dir"
+        fi
+        ;;
+    --prefix)
+        printf '%s\n' "${self_dir%/bin}"
+        ;;
+    cleanup)
+        [[ -n "${FAKE_BREW_CLEANUP_FAIL:-}" ]] && exit 1
+        exit 0
+        ;;
+    --version)
+        printf 'Homebrew 0.0.0-fake\n'
+        ;;
+    *)
+        exit 0
+        ;;
+esac

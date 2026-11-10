@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# Gaudi test runner.
+#
+#   test/run                 lint + unit + end-to-end (simulated machines)
+#   test/run lint            syntax, ShellCheck and suite-completeness checks
+#   test/run unit            unit tests
+#   test/run e2e             end-to-end tests on simulated machines
+#   test/run real            real end-to-end run in a Docker container (Debian)
+#   test/run all             everything above
+#
+# Options:
+#   --bash <path>   run the code under test with this bash
+#   --every-bash    run the selected suites once per bash found (the default
+#                   bash and /bin/bash, which is 3.2 on macOS)
+#   Any other argument is passed to bats (for example: --filter "backup").
+set -euo pipefail
+
+TEST_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+ROOT_DIR="$(cd -- "$TEST_DIR/.." >/dev/null 2>&1 && pwd)"
+
+find_bats() {
+    local candidate=""
+
+    for candidate in \
+        "${BATS:-}" \
+        "$(type -P bats 2>/dev/null || true)" \
+        "$TEST_DIR/deps/bats-core/bin/bats" \
+        "$ROOT_DIR/../gaudi-shell/bin/bats-core/bin/bats" \
+        "$ROOT_DIR/../gaudi-bash/bin/bats-core/bin/bats"; do
+        if [[ -n "$candidate" && -x "$candidate" ]]; then
+            printf "%s" "$candidate"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+suites=()
+bats_args=()
+bash_paths=()
+every_bash="false"
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        lint|unit|e2e|real)
+            suites+=("$1")
+            ;;
+        all)
+            suites+=(lint unit e2e real)
+            ;;
+        --bash)
+            bash_paths+=("$2")
+            shift
+            ;;
+        --every-bash)
+            every_bash="true"
+            ;;
+        -h|--help)
+            sed -n '3,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+            exit 0
+            ;;
+        *)
+            bats_args+=("$1")
+            ;;
+    esac
+    shift
+done
+
+[[ ${#suites[@]} -gt 0 ]] || suites=(lint unit e2e)
+
+if [[ "$every_bash" == "true" ]]; then
+    bash_paths=("$(type -P bash)")
+    if [[ -x /bin/bash && "$(/bin/bash -c 'echo $BASH_VERSION')" != "$("${bash_paths[0]}" -c 'echo $BASH_VERSION')" ]]; then
+        bash_paths+=(/bin/bash)
+    fi
+fi
+[[ ${#bash_paths[@]} -gt 0 ]] || bash_paths=("$(type -P bash)")
+
+bats_files=()
+run_real="false"
+for suite in "${suites[@]}"; do
+    case "$suite" in
+        lint) bats_files+=("$TEST_DIR/unit/meta.bats") ;;
+        unit)
+            while IFS= read -r file; do
+                [[ "$file" == */meta.bats ]] && continue
+                bats_files+=("$file")
+            done < <(find "$TEST_DIR/unit" -name '*.bats' -type f | sort)
+            ;;
+        e2e)
+            while IFS= read -r file; do
+                bats_files+=("$file")
+            done < <(find "$TEST_DIR/e2e" -name '*.bats' -type f | sort)
+            ;;
+        real) run_real="true" ;;
+    esac
+done
+
+status=0
+
+if [[ ${#bats_files[@]} -gt 0 ]]; then
+    if ! bats_bin="$(find_bats)"; then
+        printf "bats was not found. Install it (brew install bats-core / apt-get install bats) or set BATS=/path/to/bats.\n" >&2
+        exit 127
+    fi
+
+    for bash_path in "${bash_paths[@]}"; do
+        printf "\n== bats with %s (%s) ==\n" "$bash_path" "$("$bash_path" -c 'echo $BASH_VERSION')"
+        # No terminal on stdin: nothing under test may wait for the keyboard
+        GAUDI_TEST_BASH="$bash_path" "$bats_bin" ${bats_args[@]+"${bats_args[@]}"} "${bats_files[@]}" </dev/null || status=1
+    done
+fi
+
+if [[ "$run_real" == "true" ]]; then
+    printf "\n== real end-to-end (Docker, Debian) ==\n"
+    "$TEST_DIR/real/debian.sh" || status=1
+fi
+
+exit "$status"

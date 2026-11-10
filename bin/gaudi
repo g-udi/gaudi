@@ -2,8 +2,35 @@
 # shellcheck shell=bash
 set -euo pipefail
 
-GAUDI="${GAUDI:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)}"
+# The CLI is normally reached through a symlink in ~/.local/bin, so follow
+# links back to the real checkout before deriving the install root.
+gaudi_root() {
+    local source_path="${BASH_SOURCE[0]}"
+    local source_dir=""
+    local link_target=""
+
+    while [[ -L "$source_path" ]]; do
+        source_dir="$(cd -P -- "$(dirname -- "$source_path")" >/dev/null 2>&1 && pwd)"
+        link_target="$(readlink "$source_path")"
+        if [[ "$link_target" == /* ]]; then
+            source_path="$link_target"
+        else
+            source_path="$source_dir/$link_target"
+        fi
+    done
+
+    cd -P -- "$(dirname -- "$source_path")/.." >/dev/null 2>&1 && pwd
+}
+
+if [[ -z "${GAUDI:-}" || ! -f "$GAUDI/setup.sh" ]]; then
+    GAUDI="$(gaudi_root)"
+fi
 export GAUDI
+
+# shellcheck source=/dev/null
+source "$GAUDI/bin/colors.sh"
+# shellcheck source=/dev/null
+source "$GAUDI/bin/helpers.sh"
 
 usage() {
     cat <<'USAGE'
@@ -18,6 +45,44 @@ Usage:
 USAGE
 }
 
+doctor() {
+    local templates="${GAUDI_TEMPLATES_LOCATION:-$GAUDI/templates}"
+    local brewfiles=0
+    local status=0
+
+    get_os
+    get_shell_type
+    gaudi::log "Gaudi: $GAUDI"
+    gaudi::log "OS: ${OS:-unknown}"
+    gaudi::log "Shell: ${GAUDI_SETUP_SHELL:-unknown} (${GAUDI_SETUP_PROFILE:-no profile})"
+    gaudi::log "Templates: $templates"
+
+    if gaudi::command_exists git; then
+        gaudi::success "git is available"
+    else
+        gaudi::error "git is missing"
+        status=1
+    fi
+
+    if gaudi::command_exists brew; then
+        gaudi::success "Homebrew is available"
+    else
+        gaudi::warn "Homebrew is not installed yet: Brewfiles cannot be installed"
+    fi
+
+    if [[ -d "$templates" ]]; then
+        brewfiles="$(find "$templates" -type f \( -name "Brewfile" -o -name "*.Brewfile" \) -print | wc -l | tr -d ' ')"
+        gaudi::log "Brewfiles found: $brewfiles"
+    else
+        gaudi::warn "Templates are not cloned yet: run gaudi setup"
+    fi
+
+    gaudi::supported_os || gaudi::warn "This OS is detected but not fully automated yet: ${OS:-unknown}"
+
+    [[ "$status" -eq 0 ]] && gaudi::success "Doctor completed"
+    return "$status"
+}
+
 command_name="${1:-help}"
 shift || true
 
@@ -29,19 +94,7 @@ case "$command_name" in
         exec "$GAUDI/backup.sh" "$@"
         ;;
     doctor)
-        # shellcheck source=/dev/null
-        source "$GAUDI/bin/colors.sh"
-        # shellcheck source=/dev/null
-        source "$GAUDI/bin/helpers.sh"
-        get_os
-        get_shell_type
-        gaudi::log "Gaudi: $GAUDI"
-        gaudi::log "OS: ${OS:-unknown}"
-        gaudi::log "Shell: ${GAUDI_SHELL:-unknown} (${GAUDI_SHELL_PROFILE:-no profile})"
-        gaudi::log "Templates: ${GAUDI_TEMPLATES_LOCATION:-$GAUDI/templates}"
-        gaudi::command_exists git || { gaudi::error "git is missing"; exit 1; }
-        gaudi::supported_os || gaudi::warn "This OS is detected but not fully automated yet: ${OS:-unknown}"
-        gaudi::success "Doctor completed"
+        doctor
         ;;
     version)
         git -C "$GAUDI" describe --always --dirty 2>/dev/null || printf "unknown\n"

@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# Test driver: load the Gaudi libraries exactly like setup.sh does, then call
+# one function with its arguments.
+#
+#   call <function> [args...]
+#
+# GAUDI_TEST_INTERACTIVE=1 pretends a person is at the keyboard, so prompt
+# functions read the answers the test pipes in instead of using defaults.
+set -euo pipefail
+
+SOURCE_LOCATION="${GAUDI_ROOT:?GAUDI_ROOT must point at the checkout under test}"
+export SOURCE_LOCATION
+
+for library in colors helpers commands installer; do
+    # shellcheck source=/dev/null
+    source "$SOURCE_LOCATION/bin/$library.sh"
+done
+
+if [[ "${GAUDI_TEST_INTERACTIVE:-0}" == "1" ]]; then
+    gaudi::interactive() { return 0; }
+fi
+
+"$@"

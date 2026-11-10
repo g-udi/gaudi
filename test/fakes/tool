@@ -1,0 +1,209 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# Fake system tools for the test suite. One script, symlinked under many
+# names; it behaves according to the name it was called by.
+#
+# Every call is appended to $MACHINE/calls.log as "<tool> <args>", and tools
+# that install things record them under $MACHINE so tests can inspect the
+# simulated machine.
+#
+# Knobs (environment):
+#   FAKE_UNAME                 what `uname -s` prints (default Darwin)
+#   FAKE_APT_FAIL              space-separated packages apt-get cannot install
+#   FAKE_APT_UPDATE_FAIL       non-empty: `apt-get update` fails
+#   FAKE_APT_CLEAN_FAIL        non-empty: `apt-get autoremove` and `clean` fail
+#   FAKE_GEM_FAIL              space-separated gems that fail to install
+#   FAKE_CURL_FAIL             non-empty: every download fails
+#   FAKE_HOMEBREW_INSTALL_FAIL non-empty: the Homebrew installer script fails
+#   FAKE_SSH_AGENT_KEYS        non-empty: `ssh-add -l` reports a key
+#   FAKE_SSH_KEYGEN_FAIL       non-empty: ssh-keygen fails
+#   FAKE_CLT_INSTALLS          non-empty: `xcode-select --install` installs the tools
+set -u
+
+MACHINE="${MACHINE:?the fake tools need MACHINE}"
+mkdir -p "$MACHINE"
+tool="$(basename "$0")"
+printf '%s %s\n' "$tool" "$*" >> "$MACHINE/calls.log"
+
+listed() {
+    case " $1 " in
+        *" $2 "*) return 0 ;;
+    esac
+    return 1
+}
+
+record() {
+    local file="$MACHINE/$1"
+    local entry="$2"
+
+    touch "$file"
+    grep -Fxq -- "$entry" "$file" || printf '%s\n' "$entry" >> "$file"
+}
+
+case "$tool" in
+    uname)
+        printf '%s\n' "${FAKE_UNAME:-Darwin}"
+        ;;
+
+    sudo)
+        exec "$@"
+        ;;
+
+    apt-get)
+        subcommand="${1:-}"
+        [[ $# -gt 0 ]] && shift
+        case "$subcommand" in
+            update)
+                [[ -n "${FAKE_APT_UPDATE_FAIL:-}" ]] && exit 100
+                ;;
+            install)
+                status=0
+                for package in "$@"; do
+                    case "$package" in
+                        -*) continue ;;
+                    esac
+                    if listed "${FAKE_APT_FAIL:-}" "$package"; then
+                        printf 'E: Unable to locate package %s\n' "$package" >&2
+                        status=100
+                    else
+                        record apt.txt "$package"
+                    fi
+                done
+                exit "$status"
+                ;;
+            autoremove|clean)
+                [[ -n "${FAKE_APT_CLEAN_FAIL:-}" ]] && exit 100
+                ;;
+        esac
+        ;;
+
+    apt-mark)
+        [[ -f "$MACHINE/apt.txt" ]] && sort "$MACHINE/apt.txt"
+        exit 0
+        ;;
+
+    gem)
+        subcommand="${1:-}"
+        [[ $# -gt 0 ]] && shift
+        case "$subcommand" in
+            list)
+                name=""
+                for arg in "$@"; do
+                    case "$arg" in
+                        -*) ;;
+                        *) name="$arg" ;;
+                    esac
+                done
+                if [[ -f "$MACHINE/gem.txt" ]] && grep -Fxq -- "$name" "$MACHINE/gem.txt"; then
+                    printf 'true\n'
+                    exit 0
+                fi
+                printf 'false\n'
+                exit 1
+                ;;
+            install|update)
+                status=0
+                for arg in "$@"; do
+                    case "$arg" in
+                        -*) continue ;;
+                    esac
+                    if listed "${FAKE_GEM_FAIL:-}" "$arg"; then
+                        printf 'ERROR: Could not find a valid gem %s\n' "$arg" >&2
+                        status=2
+                    else
+                        record gem.txt "$arg"
+                    fi
+                done
+                exit "$status"
+                ;;
+        esac
+        ;;
+
+    defaults)
+        record defaults.txt "$*"
+        ;;
+
+    xcode-select)
+        case "${1:-}" in
+            -p)
+                [[ -f "$MACHINE/clt" ]] || exit 2
+                printf '/Library/Developer/CommandLineTools\n'
+                ;;
+            --install)
+                [[ -n "${FAKE_CLT_INSTALLS:-}" ]] && touch "$MACHINE/clt"
+                exit 0
+                ;;
+        esac
+        ;;
+
+    curl)
+        [[ -n "${FAKE_CURL_FAIL:-}" ]] && exit 22
+        url=""
+        for arg in "$@"; do
+            url="$arg"
+        done
+        case "$url" in
+            *Homebrew/install*)
+                # The "installer" drops the fake brew into the machine's
+                # Homebrew prefix and installs the Command Line Tools.
+                cat <<'INSTALLER'
+[ -n "${FAKE_HOMEBREW_INSTALL_FAIL:-}" ] && exit 1
+mkdir -p "$FAKE_BREW_PREFIX/bin"
+cp "$FAKES_DIR/brew" "$FAKE_BREW_PREFIX/bin/brew"
+chmod +x "$FAKE_BREW_PREFIX/bin/brew"
+touch "$MACHINE/clt"
+printf 'homebrew-installer NONINTERACTIVE=%s\n' "${NONINTERACTIVE:-}" >> "$MACHINE/calls.log"
+INSTALLER
+                ;;
+            *gaudi-bash*)
+                cat <<'INSTALLER'
+mkdir -p "$HOME/.gaudi_bash"
+printf 'gaudi-bash-installer %s\n' "$*" >> "$MACHINE/calls.log"
+INSTALLER
+                ;;
+            *ohmyzsh*)
+                cat <<'INSTALLER'
+mkdir -p "$HOME/.oh-my-zsh"
+printf 'oh-my-zsh-installer %s RUNZSH=%s CHSH=%s KEEP_ZSHRC=%s\n' "$*" "${RUNZSH:-}" "${CHSH:-}" "${KEEP_ZSHRC:-}" >> "$MACHINE/calls.log"
+INSTALLER
+                ;;
+            *)
+                exit 22
+                ;;
+        esac
+        ;;
+
+    ssh-keygen)
+        [[ -n "${FAKE_SSH_KEYGEN_FAIL:-}" ]] && exit 1
+        key_file=""
+        comment=""
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -f) key_file="$2"; shift ;;
+                -C) comment="$2"; shift ;;
+            esac
+            shift
+        done
+        printf 'FAKE PRIVATE KEY\n' > "$key_file"
+        printf 'ssh-ed25519 AAAAFAKE %s\n' "$comment" > "$key_file.pub"
+        ;;
+
+    ssh-add)
+        if [[ "${1:-}" == "-l" ]]; then
+            [[ -n "${FAKE_SSH_AGENT_KEYS:-}" ]] || exit 1
+            printf '256 SHA256:fake agent-key (ED25519)\n'
+        fi
+        ;;
+
+    ssh-agent)
+        printf 'SSH_AUTH_SOCK=%s/agent.sock; export SSH_AUTH_SOCK;\n' "$MACHINE"
+        ;;
+
+    *)
+        # mas, npm, dnf, yum, zypper, ...: present on the machine, nothing to do
+        exit 0
+        ;;
+esac
+
+# A knob test such as `[[ -n "$FAKE_X" ]] && exit 1` must not leak its status
+exit 0

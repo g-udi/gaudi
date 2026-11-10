@@ -2,27 +2,7 @@
 # shellcheck shell=bash
 
 gaudi::resolved_command_path() {
-    local command_name="$1"
-    local candidate=""
-
-    candidate="$(type -P "$command_name" 2>/dev/null || true)"
-    if [[ -n "$candidate" ]]; then
-        printf "%s" "$candidate"
-        return 0
-    fi
-
-    for candidate in \
-        "/opt/homebrew/bin/$command_name" \
-        "/usr/local/bin/$command_name" \
-        "/home/linuxbrew/.linuxbrew/bin/$command_name" \
-        "$HOME/.linuxbrew/bin/$command_name"; do
-        if [[ -x "$candidate" ]]; then
-            printf "%s" "$candidate"
-            return 0
-        fi
-    done
-
-    return 1
+    gaudi::find_command "$1"
 }
 
 gaudi::run_resolved_command() {

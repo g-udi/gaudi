@@ -82,8 +82,8 @@ get_shell_type
 
 gaudi::log "Install root: $SOURCE_LOCATION"
 gaudi::log "Detected OS: ${OS:-unknown}"
-gaudi::log "Detected shell: ${GAUDI_SHELL:-unknown}"
-gaudi::log "Shell profile: ${GAUDI_SHELL_PROFILE:-unknown}"
+gaudi::log "Detected shell: ${GAUDI_SETUP_SHELL:-unknown}"
+gaudi::log "Shell profile: ${GAUDI_SETUP_PROFILE:-unknown}"
 
 gaudi::supported_os || {
     gaudi::error "Gaudi currently automates macOS and Debian/Ubuntu. Detected: ${OS:-unknown}"
@@ -120,4 +120,9 @@ if [[ "$GAUDI_SKIP_CLEANUP" != "true" ]] && gaudi::confirm "Run package-manager 
     gaudi::source_if_exists "$SOURCE_LOCATION/lib/${OS}/cleanup.sh"
 fi
 
-gaudi::success "Gaudi setup finished"
+if gaudi::report_failures; then
+    gaudi::success "Gaudi setup finished"
+else
+    gaudi::warn "Gaudi setup finished with failures. Fix them and rerun: completed steps are skipped."
+    exit 1
+fi

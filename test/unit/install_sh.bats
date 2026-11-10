@@ -72,7 +72,7 @@ publish() {
 @test "GAUDI_BRANCH installs another branch" {
     git -C "$REMOTE" checkout -q -b next
     publish "only-on-next.txt" "next"
-    git -C "$REMOTE" checkout -q master
+    git -C "$REMOTE" checkout -q main
     export GAUDI_BRANCH="next"
 
     # shellcheck disable=SC2086

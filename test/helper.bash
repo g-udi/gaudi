@@ -202,10 +202,10 @@ write_file() {
     cat > "$1"
 }
 
-# Turn a directory into a git repository on branch master with one commit
+# Turn a directory into a git repository on branch main with one commit
 init_git_repo() {
     git -C "$1" init -q
-    git -C "$1" checkout -q -b master 2>/dev/null || true
+    git -C "$1" checkout -q -b main 2>/dev/null || true
     git -C "$1" add -A
     git -C "$1" commit -q -m "fixture" --allow-empty
 }

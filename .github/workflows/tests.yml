@@ -1,13 +1,13 @@
 name: tests
 
-# Runs before anything reaches master: on every pull request, in the merge
+# Runs before anything reaches main: on every pull request, in the merge
 # queue, and again on the push itself. Require the "tests passed" check in the
-# branch rules for master to block merging on a red run.
+# branch rules for main to block merging on a red run.
 on:
   pull_request:
   merge_group:
   push:
-    branches: [master]
+    branches: [main]
   workflow_dispatch:
 
 permissions:

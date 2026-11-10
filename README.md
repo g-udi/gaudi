@@ -60,7 +60,7 @@ The main motivation behind Gaudi is:
 Install Gaudi from the command line:
 
 ```sh
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi/master/install.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi/main/install.sh)"
 ```
 
 The installer makes sure Git is available (on a fresh Mac it installs [Homebrew](https://brew.sh/), which brings the Xcode Command Line Tools), clones Gaudi into `~/.gaudi` and starts the setup. It works on the Bash 3.2 that ships with macOS; nothing needs to be installed first. On Linux it uses `sudo`, or runs the commands directly when you are already root (a container, a fresh server).
@@ -68,7 +68,7 @@ The installer makes sure Git is available (on a fresh Mac it installs [Homebrew]
 Setup flags go after a name for the script:
 
 ```sh
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi/master/install.sh)" gaudi --yes --skip-ssh
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi/main/install.sh)" gaudi --yes --skip-ssh
 ```
 
 You can also clone the repository manually and run setup:
@@ -186,7 +186,7 @@ To restore on another machine:
 
 ```sh
 GAUDI_DEFAULT_TEMPLATES_URL="git@github.com:you/your-templates.git" \
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi/master/install.sh)" gaudi --yes
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi/main/install.sh)" gaudi --yes
 ```
 
 A restore only adds software; it never removes what is already on the machine. If a package no longer exists, the rest is still restored and the failure is listed at the end.
@@ -201,7 +201,7 @@ Every setup flag has a variable, and a few more settings only exist as variables
 | --- | --- | --- |
 | `GAUDI` | `~/.gaudi` | Where Gaudi is installed |
 | `GAUDI_REPO_URL` | `https://github.com/g-udi/gaudi.git` | Repository the installer clones |
-| `GAUDI_BRANCH` | `master` | Branch the installer clones and updates |
+| `GAUDI_BRANCH` | `main` | Branch the installer clones and updates |
 | `GAUDI_TEMPLATES_LOCATION` | `$GAUDI/templates` | Where the templates live |
 | `GAUDI_DEFAULT_TEMPLATES_URL` | `https://github.com/g-udi/gaudi-templates.git` | Templates repository offered at the prompt |
 | `GAUDI_ASSUME_YES` | `false` | Same as `--yes` |
@@ -434,7 +434,7 @@ Unit and end-to-end tests never touch the machine they run on. Each test gets a 
 
 ### Continuous integration
 
-[GitHub Actions](https://github.com/g-udi/gaudi/actions/workflows/tests.yml) runs on every pull request, on every push to `master`, and in the merge queue:
+[GitHub Actions](https://github.com/g-udi/gaudi/actions/workflows/tests.yml) runs on every pull request, on every push to `main`, and in the merge queue:
 
 | Job | Runs |
 | --- | --- |
@@ -443,7 +443,7 @@ Unit and end-to-end tests never touch the machine they run on. Each test gets a 
 | `real-macos` | `test/real/macos.sh`: a real formula installed, backed up, removed and restored with Homebrew |
 | `tests passed` | Succeeds only when all of the above did |
 
-To block merging until the tests pass, require the `tests passed` check on `master` (repository Settings, Branches or Rulesets). It is one check, so the rule does not need changing when jobs are added.
+To block merging until the tests pass, require the `tests passed` check on `main` (repository Settings, Branches or Rulesets). It is one check, so the rule does not need changing when jobs are added.
 
 ### Rules the code follows
 

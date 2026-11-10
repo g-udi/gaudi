@@ -4,7 +4,7 @@ set -euo pipefail
 
 GAUDI="${GAUDI:-$HOME/.gaudi}"
 GAUDI_REPO_URL="${GAUDI_REPO_URL:-https://github.com/g-udi/gaudi.git}"
-GAUDI_BRANCH="${GAUDI_BRANCH:-master}"
+GAUDI_BRANCH="${GAUDI_BRANCH:-main}"
 export GAUDI
 
 log() {

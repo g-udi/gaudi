@@ -162,10 +162,10 @@ test_files() {
 
 WORKFLOW=".github/workflows/tests.yml"
 
-@test "CI runs on pull requests, in the merge queue and on pushes to master" {
+@test "CI runs on pull requests, in the merge queue and on pushes to main" {
     grep -q '^  pull_request:' "$WORKFLOW"
     grep -q '^  merge_group:' "$WORKFLOW"
-    grep -q 'branches: \[master\]' "$WORKFLOW"
+    grep -q 'branches: \[main\]' "$WORKFLOW"
 }
 
 @test "CI runs every suite, under every bash, plus both real end-to-end runs" {

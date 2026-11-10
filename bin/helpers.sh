@@ -1,21 +1,48 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 
-gaudi::command_exists() {
+GAUDI_FAILURES=()
+
+# Print the path of a command: PATH first, then the Homebrew bin directories,
+# which are not on PATH yet right after Homebrew is installed.
+# GAUDI_BREW_BIN_DIRS (colon-separated) overrides those directories.
+gaudi::find_command() {
     local command_name="$1"
+    local dirs="${GAUDI_BREW_BIN_DIRS-/opt/homebrew/bin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:$HOME/.linuxbrew/bin}"
     local candidate=""
+    local dir=""
+    local old_ifs="$IFS"
 
-    type -P "$command_name" >/dev/null 2>&1 && return 0
+    candidate="$(type -P "$command_name" 2>/dev/null || true)"
+    if [[ -n "$candidate" ]]; then
+        printf "%s" "$candidate"
+        return 0
+    fi
 
-    for candidate in \
-        "/opt/homebrew/bin/$command_name" \
-        "/usr/local/bin/$command_name" \
-        "/home/linuxbrew/.linuxbrew/bin/$command_name" \
-        "$HOME/.linuxbrew/bin/$command_name"; do
-        [[ -x "$candidate" ]] && return 0
+    IFS=":"
+    for dir in $dirs; do
+        if [[ -n "$dir" && -x "$dir/$command_name" ]]; then
+            IFS="$old_ifs"
+            printf "%s" "$dir/$command_name"
+            return 0
+        fi
     done
+    IFS="$old_ifs"
 
     return 1
+}
+
+gaudi::command_exists() {
+    gaudi::find_command "$1" >/dev/null
+}
+
+gaudi::is_root() {
+    [[ "$(id -u 2>/dev/null || printf 1)" == "0" ]]
+}
+
+# True when a person can answer prompts
+gaudi::interactive() {
+    [[ -t 0 ]]
 }
 
 command_exists() {
@@ -38,6 +65,25 @@ gaudi::error() {
     printf "%b\n" "${RED:-}[ERROR]${NC:-} $*" >&2
 }
 
+# A failed package, hook or config is recorded and reported at the end
+# instead of aborting the whole setup.
+gaudi::record_failure() {
+    GAUDI_FAILURES+=("$*")
+    gaudi::error "Failed: $*"
+}
+
+gaudi::report_failures() {
+    local failure=""
+
+    [[ ${#GAUDI_FAILURES[@]} -gt 0 ]] || return 0
+
+    gaudi::error "${#GAUDI_FAILURES[@]} step(s) failed:"
+    for failure in "${GAUDI_FAILURES[@]}"; do
+        printf "  - %s\n" "$failure" >&2
+    done
+    return 1
+}
+
 get_os() {
     local kernel=""
 
@@ -49,10 +95,14 @@ get_os() {
         Linux)
             if gaudi::command_exists apt-get; then
                 OS="debian"
-            elif gaudi::command_exists yum; then
-                OS="centos"
+            elif gaudi::command_exists dnf; then
+                OS="fedora"
+            elif gaudi::command_exists pacman; then
+                OS="arch"
             elif gaudi::command_exists zypper; then
                 OS="opensuse"
+            elif gaudi::command_exists yum; then
+                OS="centos"
             else
                 OS="linux"
             fi
@@ -67,7 +117,7 @@ get_os() {
 
 gaudi::supported_os() {
     case "${OS:-}" in
-        osx|debian)
+        osx|debian|fedora|arch|opensuse)
             return 0
             ;;
         *)
@@ -76,8 +126,12 @@ gaudi::supported_os() {
     esac
 }
 
+# Sets GAUDI_SETUP_SHELL and GAUDI_SETUP_PROFILE.
+# These names deliberately avoid the GAUDI_SHELL_* namespace, which belongs to
+# gaudi-shell and is exported in every session where it is loaded.
 get_shell_type() {
     local shell_name="${GAUDI_TARGET_SHELL:-}"
+    local profile="${GAUDI_SETUP_PROFILE:-}"
 
     if [[ -z "$shell_name" && -n "${SHELL:-}" ]]; then
         shell_name="${SHELL##*/}"
@@ -93,34 +147,34 @@ get_shell_type() {
         fi
     fi
 
-    case "$shell_name" in
-        bash)
-            GAUDI_SHELL="bash"
-            if [[ "${OS:-}" == "osx" ]]; then
-                GAUDI_SHELL_PROFILE="${GAUDI_SHELL_PROFILE:-$HOME/.bash_profile}"
-            else
-                GAUDI_SHELL_PROFILE="${GAUDI_SHELL_PROFILE:-$HOME/.bashrc}"
-            fi
-            ;;
-        zsh)
-            GAUDI_SHELL="zsh"
-            GAUDI_SHELL_PROFILE="${GAUDI_SHELL_PROFILE:-$HOME/.zshrc}"
-            ;;
-        fish)
-            GAUDI_SHELL="fish"
-            GAUDI_SHELL_PROFILE="${GAUDI_SHELL_PROFILE:-$HOME/.config/fish/config.fish}"
-            ;;
-        sh|dash|ksh)
-            GAUDI_SHELL="$shell_name"
-            GAUDI_SHELL_PROFILE="${GAUDI_SHELL_PROFILE:-$HOME/.profile}"
-            ;;
-        *)
-            GAUDI_SHELL="$shell_name"
-            GAUDI_SHELL_PROFILE="${GAUDI_SHELL_PROFILE:-$HOME/.profile}"
-            ;;
-    esac
+    GAUDI_SETUP_SHELL="$shell_name"
 
-    export GAUDI_SHELL GAUDI_SHELL_PROFILE
+    if [[ -z "$profile" ]]; then
+        case "$shell_name" in
+            bash)
+                if [[ "${OS:-}" == "osx" ]]; then
+                    profile="$HOME/.bash_profile"
+                else
+                    profile="$HOME/.bashrc"
+                fi
+                ;;
+            zsh)
+                profile="$HOME/.zshrc"
+                ;;
+            fish)
+                profile="$HOME/.config/fish/config.fish"
+                ;;
+            *)
+                profile="$HOME/.profile"
+                ;;
+        esac
+    fi
+
+    # Never write a profile relative to the current directory
+    [[ "$profile" == /* ]] || profile="$HOME/$profile"
+    GAUDI_SETUP_PROFILE="$profile"
+
+    export GAUDI_SETUP_SHELL GAUDI_SETUP_PROFILE
 }
 
 read_answer() {
@@ -133,13 +187,17 @@ read_answer() {
         return 0
     fi
 
-    if [[ ! -t 0 && -n "$default" ]]; then
-        printf "%s" "$default"
+    if ! gaudi::interactive; then
+        printf "%s" "${default:-n}"
         return 0
     fi
 
     while [[ -z "$input" ]]; do
-        IFS= read -r -n 1 input || true
+        if ! IFS= read -r -n 1 input; then
+            # EOF: fall back instead of looping forever
+            printf "%s" "${default:-n}"
+            return 0
+        fi
         if [[ -z "$input" && -n "$default" ]]; then
             input="$default"
         fi
@@ -165,12 +223,13 @@ gaudi::confirm() {
     [[ "$answer" =~ ^[Yy]$ ]]
 }
 
+# Returns 1 when stdin is exhausted before a valid address is entered.
 read_email() {
     local input=""
     local email_regex="^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"
 
     while [[ -z "$input" ]]; do
-        IFS= read -r input
+        IFS= read -r input || return 1
         if ! [[ "$input" =~ $email_regex ]]; then
             gaudi::error "Please enter a valid email address"
             input=""
@@ -180,18 +239,22 @@ read_email() {
     printf "%s" "$input"
 }
 
+# Returns 1 when stdin is exhausted and the URL is still unreachable.
 read_git_url() {
     local input=""
     local default="${1:-https://github.com/g-udi/gaudi-templates.git}"
+    local eof="false"
 
-    while [[ -z "$input" ]]; do
-        IFS= read -e -r input || true
+    while true; do
+        IFS= read -e -r input || eof="true"
         input="${input:-$default}"
-        if ! GIT_TERMINAL_PROMPT=0 git ls-remote "$input" >/dev/null 2>&1; then
-            gaudi::error "Unable to access repository: $input"
-            printf "%b" "${YELLOW:-}Enter a reachable Git URL:${NC:-} " >&2
-            input=""
+        if GIT_TERMINAL_PROMPT=0 git ls-remote "$input" >/dev/null 2>&1; then
+            break
         fi
+        gaudi::error "Unable to access repository: $input"
+        [[ "$eof" == "true" ]] && return 1
+        printf "%b" "${YELLOW:-}Enter a reachable Git URL:${NC:-} " >&2
+        input=""
     done
 
     printf "%s" "$input"
@@ -215,11 +278,33 @@ gaudi::user_bin_dir() {
 gaudi::shell_path_line() {
     local bin_dir="$1"
 
-    if [[ "${GAUDI_SHELL:-}" == "fish" ]]; then
-        printf "contains -- \"%s\" \\$PATH; or set -gx PATH \"%s\" \\$PATH" "$bin_dir" "$bin_dir"
+    if [[ "${GAUDI_SETUP_SHELL:-}" == "fish" ]]; then
+        printf "contains -- \"%s\" \$PATH; or set -gx PATH \"%s\" \$PATH" "$bin_dir" "$bin_dir"
     else
-        printf "export PATH=\"%s:\\$PATH\"" "$bin_dir"
+        printf "export PATH=\"%s:\$PATH\"" "$bin_dir"
     fi
+}
+
+# Locate the brew binary even when it is not on PATH yet (fresh install).
+gaudi::brew_bin() {
+    gaudi::find_command brew
+}
+
+# Load Homebrew into this shell and make sure new shells get it too.
+gaudi::activate_brew() {
+    local brew_bin=""
+    local line=""
+
+    brew_bin="$(gaudi::brew_bin)" || return 1
+    eval "$("$brew_bin" shellenv)"
+
+    if [[ "${GAUDI_SETUP_SHELL:-}" == "fish" ]]; then
+        line="$brew_bin shellenv fish | source"
+    else
+        line="eval \"\$($brew_bin shellenv)\""
+    fi
+
+    gaudi::append_once "$GAUDI_SETUP_PROFILE" "$line"
 }
 
 gaudi::install_cli() {
@@ -235,8 +320,8 @@ gaudi::install_cli() {
 
     if [[ ":$PATH:" != *":$bin_dir:"* ]]; then
         path_line="$(gaudi::shell_path_line "$bin_dir")"
-        gaudi::append_once "$GAUDI_SHELL_PROFILE" "$path_line"
-        gaudi::warn "$bin_dir was added to $GAUDI_SHELL_PROFILE. Restart your shell or source that file before using gaudi directly."
+        gaudi::append_once "$GAUDI_SETUP_PROFILE" "$path_line"
+        gaudi::warn "$bin_dir was added to $GAUDI_SETUP_PROFILE. Restart your shell or source that file before using gaudi directly."
     fi
 
     gaudi::success "Installed gaudi CLI at $target"
@@ -260,6 +345,77 @@ gaudi::source_if_exists() {
     else
         gaudi::warn "Skipping missing step: $file"
     fi
+}
+
+# Homebrew on Linux is optional: it is what installs Brewfiles there.
+# Homebrew refuses to run as root, so root only gets the distribution packages.
+gaudi::offer_linuxbrew() {
+    if gaudi::command_exists brew; then
+        :
+    elif gaudi::is_root; then
+        gaudi::warn "Homebrew cannot be installed as root: run Gaudi as a regular user to install Brewfiles"
+    elif gaudi::confirm "Install Homebrew on Linux? It is required for Brewfiles." "n"; then
+        gaudi::run_remote_script /bin/bash "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh" \
+            || gaudi::record_failure "Homebrew installation"
+    fi
+
+    if gaudi::command_exists brew; then
+        gaudi::activate_brew || gaudi::warn "Homebrew could not be loaded into this shell"
+    fi
+}
+
+# Download an installer script and run it with the given interpreter.
+#   gaudi::run_remote_script <interpreter> <url> [script args...]
+# Unlike handing the output of curl straight to `bash -c`, a failed or empty download is an error
+# instead of silently running nothing.
+gaudi::run_remote_script() {
+    local interpreter="$1"
+    local url="$2"
+    local script=""
+    shift 2
+
+    if ! script="$(curl -fsSL "$url")" || [[ -z "$script" ]]; then
+        gaudi::error "Could not download $url"
+        return 1
+    fi
+
+    "$interpreter" -c "$script" "$@"
+}
+
+# Source a file and return the status of its last command, without letting a
+# failing command inside it end the whole run. `source file || handle` is not
+# enough: bash 3.2 (the bash macOS ships) still exits under `set -e`.
+gaudi::source_guarded() {
+    local _gaudi_guarded_file="$1"
+    local _gaudi_guarded_status=0
+    local _gaudi_guarded_errexit="false"
+
+    [[ "$-" == *e* ]] && _gaudi_guarded_errexit="true"
+    set +e
+    # shellcheck source=/dev/null
+    source "$_gaudi_guarded_file"
+    _gaudi_guarded_status=$?
+    [[ "$_gaudi_guarded_errexit" == "true" ]] && set -e
+    return "$_gaudi_guarded_status"
+}
+
+# Source every template hook whose file name matches the given pattern.
+# A failing hook is recorded, not fatal.
+gaudi::run_hooks_matching() {
+    local pattern="$1"
+    local hook=""
+
+    [[ -d "${GAUDI_TEMPLATES_LOCATION:-}" ]] || return 0
+    while IFS= read -r -u 4 hook; do
+        [[ -n "$hook" ]] || continue
+        # Hooks run real commands, so a dry run must only name them
+        if [[ "${GAUDI_DRY_RUN:-false}" == "true" ]]; then
+            printf "DRY RUN: hook %s\n" "$hook"
+            continue
+        fi
+        gaudi::log "Running hook: $hook"
+        gaudi::source_guarded "$hook" || gaudi::record_failure "hook $hook"
+    done 4< <(find "$GAUDI_TEMPLATES_LOCATION" -type f -iname "$pattern" -print | sort)
 }
 
 _echo() {

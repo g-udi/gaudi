@@ -1,0 +1,79 @@
+name: tests
+
+# Runs before anything reaches master: on every pull request, in the merge
+# queue, and again on the push itself. Require the "tests passed" check in the
+# branch rules for master to block merging on a red run.
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request replaces the run in progress
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  suite:
+    name: lint, unit, e2e (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install bats and ShellCheck (macOS)
+        if: runner.os == 'macOS'
+        run: brew install bats-core shellcheck
+      - name: Install bats and ShellCheck (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y bats shellcheck
+      # --every-bash also runs the suite under /bin/bash, which is 3.2 on macOS
+      - name: Run the suite
+        run: test/run --every-bash
+
+  real-linux:
+    name: real end-to-end (Linux containers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install, back up, remove and restore real packages on Debian, Fedora, openSUSE and Arch
+        run: test/run real
+
+  real-macos:
+    name: real end-to-end (macOS, Homebrew)
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install, back up, remove and restore a real formula
+        run: GAUDI_E2E_REAL_MACOS=1 test/real/macos.sh
+
+  # The one check to require in the branch rules. It fails when any job above
+  # failed, was cancelled or was skipped, so a red run can never be merged.
+  passed:
+    name: tests passed
+    if: always()
+    needs: [suite, real-linux, real-macos]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check every job succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "job results: $RESULTS"
+          for result in $RESULTS; do
+            if [ "$result" != "success" ]; then
+              echo "::error::a test job ended with: $result"
+              exit 1
+            fi
+          done

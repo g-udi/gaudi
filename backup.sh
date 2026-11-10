@@ -11,146 +11,167 @@ source "$SOURCE_LOCATION/bin/helpers.sh"
 source "$SOURCE_LOCATION/bin/commands.sh"
 
 BACKUP_DIR="${1:-$PWD/backup}"
+GAUDI_TEMPLATES_LOCATION="${GAUDI_TEMPLATES_LOCATION:-${GAUDI:-$SOURCE_LOCATION}/templates}"
 mkdir -p "$BACKUP_DIR"
 
-write_header() {
+# Write a Gaudi list file from package names on stdin.
+#   write_list <file> <array name>
+write_list() {
     local file="$1"
-    local name="$2"
-    local list_name="$3"
-
-    cat > "$file" <<EOF
-# @Name: $name
-# @List: $list_name
-export $list_name=(
-
-EOF
-}
-
-write_footer() {
-    printf ")\n" >> "$1"
-}
-
-append_item() {
-    local file="$1"
-    local package_name="$2"
-    local description="${3:-}"
-    local safe_package=""
-    local safe_description=""
-
-    safe_package="${package_name//\\/\\\\}"
-    safe_package="${safe_package//\"/\\\"}"
-    safe_description="${description//\\/\\\\}"
-    safe_description="${safe_description//\"/\\\"}"
-
-    printf '  "%s::%s"\n' "$safe_package" "$safe_description" >> "$file"
-}
-
-backup_brew() {
-    local file="$BACKUP_DIR/default.brew.list.sh"
+    local list_name="$2"
     local package_name=""
 
-    write_header "$file" "Default" "brewList"
-    if gaudi::command_exists brew; then
+    {
+        printf "# @Name: Default\n# @List: %s\n%s=(\n" "$list_name" "$list_name"
         while IFS= read -r package_name; do
             [[ -n "$package_name" ]] || continue
-            append_item "$file" "$package_name" "$(brew desc --eval-all "$package_name" 2>/dev/null | sed 's/^[^:]*: //')"
-        done < <(brew leaves 2>/dev/null)
-    else
-        gaudi::warn "Skipping Homebrew backup: brew is not installed"
-    fi
-    write_footer "$file"
+            printf '  "%s"\n' "$package_name"
+        done
+        printf ")\n"
+    } > "$file"
+    gaudi::success "Wrote $file"
 }
 
-backup_cask() {
-    local file="$BACKUP_DIR/default.cask.list.sh"
-    local package_name=""
+# One Brewfile covers taps, formulae, casks, Mac App Store apps, VS Code
+# extensions and the npm/go/cargo/uv packages Homebrew knows how to track.
+backup_bundle() {
+    local file="$BACKUP_DIR/Brewfile"
 
-    write_header "$file" "Default" "caskList"
-    if gaudi::command_exists brew; then
-        while IFS= read -r package_name; do
-            [[ -n "$package_name" ]] || continue
-            append_item "$file" "$package_name" "$(brew info --cask "$package_name" 2>/dev/null | awk '/^==> Description/{getline; print; exit}')"
-        done < <(brew list --cask 2>/dev/null)
-    else
-        gaudi::warn "Skipping cask backup: brew is not installed"
+    if ! gaudi::command_exists brew; then
+        gaudi::warn "Skipping Brewfile backup: Homebrew is not installed"
+        return 0
     fi
-    write_footer "$file"
+
+    if ! brew bundle dump --force "--file=$file"; then
+        gaudi::record_failure "brew bundle dump"
+        return 0
+    fi
+
+    # Current Homebrew writes a description above each entry by default and
+    # rejects --describe; older versions only describe when asked to.
+    if ! grep -q '^#' "$file" && brew bundle dump --describe --force "--file=$file.described" >/dev/null 2>&1; then
+        mv "$file.described" "$file"
+    fi
+    rm -f "$file.described"
+
+    gaudi::success "Wrote $file"
+    return 0
 }
 
-backup_mas() {
-    local file="$BACKUP_DIR/default.mas.list.sh"
-    local app_id=""
-    local app_name=""
-
-    write_header "$file" "Default" "masList"
-    if gaudi::command_exists mas; then
-        while IFS= read -r app_id app_name; do
-            [[ -n "$app_id" ]] || continue
-            append_item "$file" "$app_id" "$app_name"
-        done < <(mas list 2>/dev/null)
-    else
-        gaudi::warn "Skipping Mac App Store backup: mas is not installed"
-    fi
-    write_footer "$file"
-}
-
-backup_npm() {
-    local file="$BACKUP_DIR/default.npm.list.sh"
-    local package_path=""
-    local package_name=""
-
-    write_header "$file" "Default" "npmList"
-    if gaudi::command_exists npm; then
-        while IFS= read -r package_path; do
-            [[ -n "$package_path" ]] || continue
-            package_name="${package_path##*/}"
-            if [[ "$(basename "$(dirname "$package_path")")" == @* ]]; then
-                package_name="$(basename "$(dirname "$package_path")")/$package_name"
-            fi
-            append_item "$file" "$package_name"
-        done < <(npm list -g --depth=0 --parseable 2>/dev/null | sed '1d')
-    else
-        gaudi::warn "Skipping npm backup: npm is not installed"
-    fi
-    write_footer "$file"
-}
-
-backup_pip() {
-    local file="$BACKUP_DIR/default.pip.list.sh"
-    local package_name=""
-
-    write_header "$file" "Default" "pipList"
-    if gaudi::command_exists python3; then
-        while IFS='=' read -r package_name _; do
-            [[ -n "$package_name" ]] || continue
-            append_item "$file" "$package_name"
-        done < <(python3 -m pip list --user --format=freeze 2>/dev/null || true)
-    else
-        gaudi::warn "Skipping pip backup: python3 is not installed"
-    fi
-    write_footer "$file"
-}
-
+# Only packages the user asked for, not the whole base system
 backup_apt() {
-    local file="$BACKUP_DIR/default.apt-get.sh"
-    local package_name=""
-
-    write_header "$file" "Default" "aptList"
-    if gaudi::command_exists dpkg-query; then
-        while IFS= read -r package_name; do
-            [[ -n "$package_name" ]] || continue
-            append_item "$file" "$package_name"
-        done < <(dpkg-query -W -f='${binary:Package}\n' 2>/dev/null)
+    if ! gaudi::command_exists apt-mark; then
+        gaudi::warn "Skipping apt backup: apt-mark is not available"
+        return 0
     fi
-    write_footer "$file"
+
+    apt-mark showmanual 2>/dev/null | sort | write_list "$BACKUP_DIR/default.apt.list.sh" aptList
 }
 
-gaudi::log "Writing backup lists to $BACKUP_DIR"
+backup_dnf() {
+    if ! gaudi::command_exists dnf; then
+        gaudi::warn "Skipping dnf backup: dnf is not available"
+        return 0
+    fi
 
-for manager in ${GAUDI_BACKUP_MANAGERS:-brew cask mas npm pip apt}; do
+    dnf repoquery --userinstalled --queryformat '%{name}\n' 2>/dev/null | sort -u | write_list "$BACKUP_DIR/default.dnf.list.sh" dnfList
+}
+
+backup_pacman() {
+    if ! gaudi::command_exists pacman; then
+        gaudi::warn "Skipping pacman backup: pacman is not available"
+        return 0
+    fi
+
+    # -Qqe: explicitly installed packages, names only
+    pacman -Qqe 2>/dev/null | sort -u | write_list "$BACKUP_DIR/default.pacman.list.sh" pacmanList
+}
+
+backup_zypper() {
+    if ! gaudi::command_exists zypper; then
+        gaudi::warn "Skipping zypper backup: zypper is not available"
+        return 0
+    fi
+
+    # The table is "status | repository | name | version | arch"
+    zypper --quiet packages --userinstalled 2>/dev/null \
+        | awk -F'|' 'NF >= 5 && $1 ~ /i/ { gsub(/^[ \t]+|[ \t]+$/, "", $3); if ($3 != "" && $3 != "Name") print $3 }' \
+        | sort -u | write_list "$BACKUP_DIR/default.zypper.list.sh" zypperList
+}
+
+# Gems installed into the user's gem directory (which is where Gaudi puts them)
+backup_gem() {
+    local gems=""
+
+    if ! gaudi::command_exists gem || ! gaudi::command_exists ruby; then
+        gaudi::warn "Skipping gem backup: ruby and gem are not available"
+        return 0
+    fi
+
+    # Read the gemspecs in the user directory directly: asking RubyGems for
+    # "all specifications" also returns the gems that ship with Ruby itself.
+    gems="$(ruby -e 'puts Dir[File.join(Gem.user_dir, "specifications", "*.gemspec")].map { |file| Gem::Specification.load(file) }.compact.map(&:name).uniq.sort' 2>/dev/null || true)"
+    if [[ -z "$gems" ]]; then
+        gaudi::log "No user-installed gems to back up"
+        return 0
+    fi
+
+    printf "%s\n" "$gems" | write_list "$BACKUP_DIR/default.gem.list.sh" gemList
+}
+
+# Copy the files named in the templates' dotfiles.list (paths relative to the
+# home directory, one per line) into <backup>/dotfiles, keeping their layout.
+backup_dotfiles() {
+    local list=""
+    local entry=""
+    local copied=0
+
+    [[ -d "$GAUDI_TEMPLATES_LOCATION" ]] && list="$(find "$GAUDI_TEMPLATES_LOCATION" -type f -name "dotfiles.list" -print | sort | head -n 1)"
+    if [[ -z "$list" ]]; then
+        gaudi::log "No dotfiles.list in the templates: no dotfiles backed up"
+        return 0
+    fi
+
+    while IFS= read -r entry || [[ -n "$entry" ]]; do
+        entry="${entry%%#*}"
+        entry="${entry#"${entry%%[![:space:]]*}"}"
+        entry="${entry%"${entry##*[![:space:]]}"}"
+        [[ -n "$entry" ]] || continue
+
+        if [[ "$entry" == /* || "$entry" == *".."* ]]; then
+            gaudi::warn "Skipping '$entry' in $list: paths must be inside the home directory"
+            continue
+        fi
+        if [[ ! -e "$HOME/$entry" ]]; then
+            gaudi::warn "Skipping '$entry': not found in $HOME"
+            continue
+        fi
+
+        mkdir -p "$BACKUP_DIR/dotfiles/$(dirname "$entry")"
+        rm -rf "$BACKUP_DIR/dotfiles/${entry:?}"
+        cp -R "$HOME/$entry" "$BACKUP_DIR/dotfiles/$entry" || gaudi::record_failure "copying $entry"
+        copied=$((copied + 1))
+    done < "$list"
+
+    gaudi::success "Copied $copied dotfile(s) to $BACKUP_DIR/dotfiles"
+}
+
+gaudi::log "Writing backup to $BACKUP_DIR"
+
+get_os
+default_managers="bundle gem dotfiles"
+[[ "${OS:-}" == "debian" ]] && default_managers="bundle apt gem dotfiles"
+[[ "${OS:-}" == "fedora" ]] && default_managers="bundle dnf gem dotfiles"
+[[ "${OS:-}" == "arch" ]] && default_managers="bundle pacman gem dotfiles"
+[[ "${OS:-}" == "opensuse" ]] && default_managers="bundle zypper gem dotfiles"
+
+for manager in ${GAUDI_BACKUP_MANAGERS:-$default_managers}; do
     case "$manager" in
-        brew|cask|mas|npm|pip|apt)
+        bundle|apt|dnf|pacman|zypper|gem|dotfiles)
             "backup_$manager"
+            ;;
+        brew|cask|tap|mas|npm|pip|go)
+            gaudi::warn "'$manager' is now part of the Brewfile: use GAUDI_BACKUP_MANAGERS=bundle"
             ;;
         *)
             gaudi::warn "Unknown backup manager: $manager"
@@ -158,4 +179,8 @@ for manager in ${GAUDI_BACKUP_MANAGERS:-brew cask mas npm pip apt}; do
     esac
 done
 
-gaudi::success "Backup complete"
+if gaudi::report_failures; then
+    gaudi::success "Backup complete"
+else
+    exit 1
+fi

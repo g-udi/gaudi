@@ -3,5 +3,5 @@
 
 gaudi::log "Cleaning apt cache"
 
-sudo apt-get autoremove -y
-sudo apt-get clean
+sudo apt-get autoremove -y || gaudi::record_failure "apt-get autoremove"
+sudo apt-get clean || gaudi::record_failure "apt-get clean"

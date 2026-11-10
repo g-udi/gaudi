@@ -2,27 +2,7 @@
 # shellcheck shell=bash
 
 gaudi::resolved_command_path() {
-    local command_name="$1"
-    local candidate=""
-
-    candidate="$(type -P "$command_name" 2>/dev/null || true)"
-    if [[ -n "$candidate" ]]; then
-        printf "%s" "$candidate"
-        return 0
-    fi
-
-    for candidate in \
-        "/opt/homebrew/bin/$command_name" \
-        "/usr/local/bin/$command_name" \
-        "/home/linuxbrew/.linuxbrew/bin/$command_name" \
-        "$HOME/.linuxbrew/bin/$command_name"; do
-        if [[ -x "$candidate" ]]; then
-            printf "%s" "$candidate"
-            return 0
-        fi
-    done
-
-    return 1
+    gaudi::find_command "$1"
 }
 
 gaudi::run_resolved_command() {
@@ -36,6 +16,25 @@ gaudi::run_resolved_command() {
     }
 
     "$command_path" "$@"
+}
+
+# Run a command as root. A minimal Debian (a container, a fresh server) often
+# has no sudo and runs as root already, where the command can just be run.
+sudo() {
+    local sudo_path=""
+
+    if sudo_path="$(gaudi::find_command sudo)"; then
+        "$sudo_path" "$@"
+        return
+    fi
+
+    if gaudi::is_root; then
+        "$@"
+        return
+    fi
+
+    gaudi::error "This step needs root: install sudo or run Gaudi as root"
+    return 1
 }
 
 brew() {

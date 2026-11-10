@@ -1,0 +1,182 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# Gaudi test runner.
+#
+#   test/run                 lint + unit + end-to-end (simulated machines)
+#   test/run lint            syntax, ShellCheck and suite-completeness checks
+#   test/run unit            unit tests
+#   test/run e2e             end-to-end tests on simulated machines
+#   test/run real            real end-to-end runs in Docker containers (Debian, Fedora, openSUSE, Arch)
+#   test/run all             everything above
+#
+# Options:
+#   --bash <path>   run the code under test with this bash
+#   --every-bash    run the selected suites once per bash found (the default
+#                   bash and /bin/bash, which is 3.2 on macOS)
+#   --jobs <n>      test files to run at the same time (default: the number
+#                   of CPUs, at most 8; 1 runs them one after another)
+#   Any other argument is passed to bats (for example: --filter "backup").
+set -euo pipefail
+
+TEST_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+ROOT_DIR="$(cd -- "$TEST_DIR/.." >/dev/null 2>&1 && pwd)"
+
+find_bats() {
+    local candidate=""
+
+    for candidate in \
+        "${BATS:-}" \
+        "$(type -P bats 2>/dev/null || true)" \
+        "$TEST_DIR/deps/bats-core/bin/bats" \
+        "$ROOT_DIR/../gaudi-shell/bin/bats-core/bin/bats" \
+        "$ROOT_DIR/../gaudi-bash/bin/bats-core/bin/bats"; do
+        if [[ -n "$candidate" && -x "$candidate" ]]; then
+            printf "%s" "$candidate"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+cpu_count() {
+    local count=""
+
+    count="$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || printf 2)"
+    [[ "$count" =~ ^[0-9]+$ ]] || count=2
+    [[ "$count" -gt 8 ]] && count=8
+    printf "%s" "$count"
+}
+
+suites=()
+bats_args=()
+bash_paths=()
+every_bash="false"
+jobs=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        lint|unit|e2e|real)
+            suites+=("$1")
+            ;;
+        all)
+            suites+=(lint unit e2e real)
+            ;;
+        --bash)
+            bash_paths+=("$2")
+            shift
+            ;;
+        --every-bash)
+            every_bash="true"
+            ;;
+        --jobs)
+            jobs="$2"
+            shift
+            ;;
+        -h|--help)
+            sed -n '3,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+            exit 0
+            ;;
+        *)
+            bats_args+=("$1")
+            ;;
+    esac
+    shift
+done
+
+[[ ${#suites[@]} -gt 0 ]] || suites=(lint unit e2e)
+[[ -n "$jobs" ]] || jobs="$(cpu_count)"
+
+if [[ "$every_bash" == "true" ]]; then
+    bash_paths=("$(type -P bash)")
+    if [[ -x /bin/bash && "$(/bin/bash -c 'echo $BASH_VERSION')" != "$("${bash_paths[0]}" -c 'echo $BASH_VERSION')" ]]; then
+        bash_paths+=(/bin/bash)
+    fi
+fi
+[[ ${#bash_paths[@]} -gt 0 ]] || bash_paths=("$(type -P bash)")
+
+bats_files=()
+run_real="false"
+for suite in "${suites[@]}"; do
+    case "$suite" in
+        lint) bats_files+=("$TEST_DIR/unit/meta.bats") ;;
+        unit)
+            while IFS= read -r file; do
+                [[ "$file" == */meta.bats ]] && continue
+                bats_files+=("$file")
+            done < <(find "$TEST_DIR/unit" -name '*.bats' -type f | sort)
+            ;;
+        e2e)
+            while IFS= read -r file; do
+                bats_files+=("$file")
+            done < <(find "$TEST_DIR/e2e" -name '*.bats' -type f | sort)
+            ;;
+        real) run_real="true" ;;
+    esac
+done
+
+status=0
+
+# Run every test file as its own bats process, several at a time, then print
+# the results in a fixed order with one summary.
+run_bats_files() {
+    local bash_path="$1"
+    local results=""
+    local file=""
+    local name=""
+    local passed=0
+    local failed=0
+    local file_passed=0
+    local file_failed=0
+
+    results="$(mktemp -d "${TMPDIR:-/tmp}/gaudi-test.XXXXXX")"
+    printf "%s\n" ${bats_args[@]+"${bats_args[@]}"} > "$results/args"
+
+    # run-file detaches each bats process from the terminal, so nothing under
+    # test can wait for the keyboard
+    printf "%s\n" "${bats_files[@]}" | GAUDI_TEST_BASH="$bash_path" BATS_BIN="$bats_bin" RESULTS="$results" \
+        xargs -P "$jobs" -I '{}' "$TEST_DIR/support/run-file" '{}' || true
+
+    for file in "${bats_files[@]}"; do
+        name="${file#"$TEST_DIR"/}"
+        name="${name//\//-}"
+        file_passed="$(grep -c '^ok ' "$results/$name.tap" || true)"
+        file_failed="$(grep -c '^not ok ' "$results/$name.tap" || true)"
+        passed=$((passed + file_passed))
+        failed=$((failed + file_failed))
+
+        if [[ "$file_failed" -gt 0 || "$(cat "$results/$name.status")" != "0" ]]; then
+            printf "\n--- %s: %s passed, %s FAILED\n" "${file#"$ROOT_DIR"/}" "$file_passed" "$file_failed"
+            # Everything except the passing lines: failures with their details
+            grep -v '^ok ' "$results/$name.tap" || true
+            [[ "$file_failed" -gt 0 ]] || failed=$((failed + 1))
+        else
+            printf "ok  %-44s %s tests\n" "${file#"$ROOT_DIR"/}" "$file_passed"
+        fi
+    done
+
+    rm -rf "$results"
+    printf "\n%s passed, %s failed (bash %s)\n" "$passed" "$failed" "$("$bash_path" -c 'echo $BASH_VERSION')"
+    [[ "$failed" -eq 0 ]]
+}
+
+if [[ ${#bats_files[@]} -gt 0 ]]; then
+    if ! bats_bin="$(find_bats)"; then
+        printf "bats was not found. Install it (brew install bats-core / apt-get install bats) or set BATS=/path/to/bats.\n" >&2
+        exit 127
+    fi
+
+    for bash_path in "${bash_paths[@]}"; do
+        printf "\n== bats with %s (%s), %s file(s) at a time ==\n" "$bash_path" "$("$bash_path" -c 'echo $BASH_VERSION')" "$jobs"
+        run_bats_files "$bash_path" || status=1
+    done
+fi
+
+if [[ "$run_real" == "true" ]]; then
+    for distro in debian fedora opensuse arch; do
+        printf "\n== real end-to-end (Docker, %s) ==\n" "$distro"
+        "$TEST_DIR/real/linux.sh" "$distro" || status=1
+    done
+fi
+
+exit "$status"

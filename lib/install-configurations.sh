@@ -18,8 +18,10 @@ gaudi::run_configuration() {
     unset _info
     unset -f _command 2>/dev/null || true
 
-    # shellcheck source=/dev/null
-    source "$config_file"
+    gaudi::source_guarded "$config_file" || {
+        gaudi::record_failure "config $config_file"
+        return 0
+    }
 
     if ! declare -F _command >/dev/null 2>&1; then
         gaudi::warn "Skipping $config_file: _command function is missing"
@@ -29,10 +31,17 @@ gaudi::run_configuration() {
     _info="${_info:-$(basename "$config_file")}"
     if [[ "$install_all" == "true" ]]; then
         printf "%b\n" "${GREEN:-}${_info}${NC:-}"
-        _command
-    else
-        gaudi::confirm "${GREEN:-}${_info}${NC:-}" "n" && _command
+    elif ! gaudi::confirm "${GREEN:-}${_info}${NC:-}" "n"; then
+        # Declining one config must not end the run
+        return 0
     fi
+
+    if [[ "${GAUDI_DRY_RUN:-false}" == "true" ]]; then
+        printf "DRY RUN: config %s\n" "$config_file"
+        return 0
+    fi
+
+    _command || gaudi::record_failure "config ${_info}"
 }
 
 if [[ ! -d "$GAUDI_TEMPLATES_LOCATION" ]]; then
@@ -46,7 +55,7 @@ else
     install_all=false
 fi
 
-while IFS= read -r config_file; do
+while IFS= read -r -u 3 config_file; do
     [[ -n "$config_file" ]] || continue
     gaudi::run_configuration "$config_file" "$install_all"
-done < <(gaudi::configuration_files)
+done 3< <(gaudi::configuration_files)

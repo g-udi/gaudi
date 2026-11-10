@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# Test driver: run one or more setup steps the way setup.sh runs them
+# (libraries loaded, OS and shell detected, `set -euo pipefail`), then print
+# the failure summary. Exits 1 when a step recorded a failure.
+#
+#   step <path relative to the checkout> [more steps...]
+#
+# GAUDI_TEST_INTERACTIVE=1 pretends a person is at the keyboard.
+set -euo pipefail
+
+SOURCE_LOCATION="${GAUDI_ROOT:?GAUDI_ROOT must point at the checkout under test}"
+export SOURCE_LOCATION
+GAUDI="${GAUDI:-$SOURCE_LOCATION}"
+export GAUDI
+
+for library in colors helpers commands installer; do
+    # shellcheck source=/dev/null
+    source "$SOURCE_LOCATION/bin/$library.sh"
+done
+
+if [[ "${GAUDI_TEST_INTERACTIVE:-0}" == "1" ]]; then
+    gaudi::interactive() { return 0; }
+fi
+
+get_os
+get_shell_type
+
+for step_file in "$@"; do
+    # shellcheck source=/dev/null
+    source "$SOURCE_LOCATION/$step_file"
+done
+
+printf "STEP-DONE\n"
+gaudi::report_failures

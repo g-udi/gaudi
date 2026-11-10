@@ -1,0 +1,306 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# Fake system tools for the test suite. One script, symlinked under many
+# names; it behaves according to the name it was called by.
+#
+# Every call is appended to $MACHINE/calls.log as "<tool> <args>", and tools
+# that install things record them under $MACHINE so tests can inspect the
+# simulated machine.
+#
+# Knobs (environment):
+#   FAKE_UNAME                 what `uname -s` prints (default Darwin)
+#   FAKE_UID                   what `id -u` prints (default 501; 0 is root)
+#   FAKE_APT_FAIL              space-separated packages apt-get cannot install
+#   FAKE_APT_UPDATE_FAIL       non-empty: `apt-get update` fails
+#   FAKE_APT_CLEAN_FAIL        non-empty: `apt-get autoremove` and `clean` fail
+#   FAKE_DNF_FAIL              space-separated packages dnf cannot install
+#   FAKE_DNF_CLEAN_FAIL        non-empty: `dnf autoremove` and `dnf clean` fail
+#   FAKE_PACMAN_FAIL           space-separated packages pacman cannot install ("cache": -Sc fails)
+#   FAKE_ZYPPER_FAIL           space-separated packages zypper cannot install ("cache": clean fails)
+#   FAKE_GEM_FAIL              space-separated gems that fail to install
+#   FAKE_CURL_FAIL             non-empty: every download fails
+#   FAKE_HOMEBREW_INSTALL_FAIL non-empty: the Homebrew installer script fails
+#   FAKE_SSH_AGENT_KEYS        non-empty: `ssh-add -l` reports a key
+#   FAKE_SSH_KEYGEN_FAIL       non-empty: ssh-keygen fails
+#   FAKE_CLT_INSTALLS          non-empty: `xcode-select --install` installs the tools
+set -u
+
+MACHINE="${MACHINE:?the fake tools need MACHINE}"
+mkdir -p "$MACHINE"
+tool="$(basename "$0")"
+printf '%s %s\n' "$tool" "$*" >> "$MACHINE/calls.log"
+
+listed() {
+    case " $1 " in
+        *" $2 "*) return 0 ;;
+    esac
+    return 1
+}
+
+record() {
+    local file="$MACHINE/$1"
+    local entry="$2"
+
+    touch "$file"
+    grep -Fxq -- "$entry" "$file" || printf '%s\n' "$entry" >> "$file"
+}
+
+case "$tool" in
+    uname)
+        printf '%s\n' "${FAKE_UNAME:-Darwin}"
+        ;;
+
+    sudo)
+        exec "$@"
+        ;;
+
+    id)
+        printf '%s\n' "${FAKE_UID:-501}"
+        ;;
+
+    apt-get)
+        subcommand="${1:-}"
+        [[ $# -gt 0 ]] && shift
+        case "$subcommand" in
+            update)
+                [[ -n "${FAKE_APT_UPDATE_FAIL:-}" ]] && exit 100
+                ;;
+            install)
+                status=0
+                for package in "$@"; do
+                    case "$package" in
+                        -*) continue ;;
+                    esac
+                    if listed "${FAKE_APT_FAIL:-}" "$package"; then
+                        printf 'E: Unable to locate package %s\n' "$package" >&2
+                        status=100
+                    else
+                        record apt.txt "$package"
+                    fi
+                done
+                exit "$status"
+                ;;
+            autoremove|clean)
+                [[ -n "${FAKE_APT_CLEAN_FAIL:-}" ]] && exit 100
+                ;;
+        esac
+        ;;
+
+    dnf)
+        subcommand="${1:-}"
+        [[ $# -gt 0 ]] && shift
+        case "$subcommand" in
+            install)
+                status=0
+                for package in "$@"; do
+                    case "$package" in
+                        -*) continue ;;
+                    esac
+                    if listed "${FAKE_DNF_FAIL:-}" "$package"; then
+                        printf 'Error: Unable to find a match: %s\n' "$package" >&2
+                        status=1
+                    else
+                        record dnf.txt "$package"
+                    fi
+                done
+                exit "$status"
+                ;;
+            repoquery)
+                [[ -f "$MACHINE/dnf.txt" ]] && sort "$MACHINE/dnf.txt"
+                exit 0
+                ;;
+            autoremove|clean)
+                [[ -n "${FAKE_DNF_CLEAN_FAIL:-}" ]] && exit 1
+                ;;
+        esac
+        ;;
+
+    pacman)
+        case "${1:-}" in
+            -Qqe)
+                [[ -f "$MACHINE/pacman.txt" ]] && sort "$MACHINE/pacman.txt"
+                exit 0
+                ;;
+            -Sc)
+                [[ -n "${FAKE_PACMAN_FAIL:-}" ]] && listed "$FAKE_PACMAN_FAIL" "cache" && exit 1
+                exit 0
+                ;;
+            -S|-Sy)
+                status=0
+                for package in "$@"; do
+                    case "$package" in
+                        -*) continue ;;
+                    esac
+                    if listed "${FAKE_PACMAN_FAIL:-}" "$package"; then
+                        printf 'error: target not found: %s\n' "$package" >&2
+                        status=1
+                    else
+                        record pacman.txt "$package"
+                    fi
+                done
+                exit "$status"
+                ;;
+        esac
+        ;;
+
+    zypper)
+        status=0
+        mode=""
+        for argument in "$@"; do
+            case "$argument" in
+                install|clean|packages) mode="$argument" ;;
+                -*) ;;
+                *)
+                    if [[ "$mode" == "install" ]]; then
+                        if listed "${FAKE_ZYPPER_FAIL:-}" "$argument"; then
+                            printf "No provider of '%s' found.\n" "$argument" >&2
+                            status=104
+                        else
+                            record zypper.txt "$argument"
+                        fi
+                    fi
+                    ;;
+            esac
+        done
+        if [[ "$mode" == "packages" ]]; then
+            printf 'S  | Repository | Name | Version | Arch\n---+------------+------+---------+-----\n'
+            if [[ -f "$MACHINE/zypper.txt" ]]; then
+                while IFS= read -r package; do
+                    printf 'i+ | Main       | %s | 1.0 | noarch\n' "$package"
+                done < <(sort "$MACHINE/zypper.txt")
+            fi
+        fi
+        [[ "$mode" == "clean" && -n "${FAKE_ZYPPER_FAIL:-}" ]] && listed "$FAKE_ZYPPER_FAIL" "cache" && exit 1
+        exit "$status"
+        ;;
+
+    ruby)
+        # Only used to list the gems in the user's gem directory
+        [[ -f "$MACHINE/gem.txt" ]] && sort -u "$MACHINE/gem.txt"
+        exit 0
+        ;;
+
+    apt-mark)
+        [[ -f "$MACHINE/apt.txt" ]] && sort "$MACHINE/apt.txt"
+        exit 0
+        ;;
+
+    gem)
+        subcommand="${1:-}"
+        [[ $# -gt 0 ]] && shift
+        case "$subcommand" in
+            list)
+                name=""
+                for arg in "$@"; do
+                    case "$arg" in
+                        -*) ;;
+                        *) name="$arg" ;;
+                    esac
+                done
+                if [[ -f "$MACHINE/gem.txt" ]] && grep -Fxq -- "$name" "$MACHINE/gem.txt"; then
+                    printf 'true\n'
+                    exit 0
+                fi
+                printf 'false\n'
+                exit 1
+                ;;
+            install|update)
+                status=0
+                for arg in "$@"; do
+                    case "$arg" in
+                        -*) continue ;;
+                    esac
+                    if listed "${FAKE_GEM_FAIL:-}" "$arg"; then
+                        printf 'ERROR: Could not find a valid gem %s\n' "$arg" >&2
+                        status=2
+                    else
+                        record gem.txt "$arg"
+                    fi
+                done
+                exit "$status"
+                ;;
+        esac
+        ;;
+
+    defaults)
+        record defaults.txt "$*"
+        ;;
+
+    xcode-select)
+        case "${1:-}" in
+            -p)
+                [[ -f "$MACHINE/clt" ]] || exit 2
+                printf '/Library/Developer/CommandLineTools\n'
+                ;;
+            --install)
+                [[ -n "${FAKE_CLT_INSTALLS:-}" ]] && touch "$MACHINE/clt"
+                exit 0
+                ;;
+        esac
+        ;;
+
+    curl)
+        [[ -n "${FAKE_CURL_FAIL:-}" ]] && exit 22
+        url=""
+        for arg in "$@"; do
+            url="$arg"
+        done
+        case "$url" in
+            *Homebrew/install*)
+                # The "installer" drops the fake brew into the machine's
+                # Homebrew prefix and installs the Command Line Tools.
+                cat <<'INSTALLER'
+[ -n "${FAKE_HOMEBREW_INSTALL_FAIL:-}" ] && exit 1
+mkdir -p "$FAKE_BREW_PREFIX/bin"
+cp "$FAKES_DIR/brew" "$FAKE_BREW_PREFIX/bin/brew"
+chmod +x "$FAKE_BREW_PREFIX/bin/brew"
+touch "$MACHINE/clt"
+printf 'homebrew-installer NONINTERACTIVE=%s\n' "${NONINTERACTIVE:-}" >> "$MACHINE/calls.log"
+INSTALLER
+                ;;
+            *ohmyzsh*)
+                cat <<'INSTALLER'
+mkdir -p "$HOME/.oh-my-zsh"
+printf 'oh-my-zsh-installer %s RUNZSH=%s CHSH=%s KEEP_ZSHRC=%s\n' "$*" "${RUNZSH:-}" "${CHSH:-}" "${KEEP_ZSHRC:-}" >> "$MACHINE/calls.log"
+INSTALLER
+                ;;
+            *)
+                exit 22
+                ;;
+        esac
+        ;;
+
+    ssh-keygen)
+        [[ -n "${FAKE_SSH_KEYGEN_FAIL:-}" ]] && exit 1
+        key_file=""
+        comment=""
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -f) key_file="$2"; shift ;;
+                -C) comment="$2"; shift ;;
+            esac
+            shift
+        done
+        printf 'FAKE PRIVATE KEY\n' > "$key_file"
+        printf 'ssh-ed25519 AAAAFAKE %s\n' "$comment" > "$key_file.pub"
+        ;;
+
+    ssh-add)
+        if [[ "${1:-}" == "-l" ]]; then
+            [[ -n "${FAKE_SSH_AGENT_KEYS:-}" ]] || exit 1
+            printf '256 SHA256:fake agent-key (ED25519)\n'
+        fi
+        ;;
+
+    ssh-agent)
+        printf 'SSH_AUTH_SOCK=%s/agent.sock; export SSH_AUTH_SOCK;\n' "$MACHINE"
+        ;;
+
+    *)
+        # mas, npm, dnf, yum, zypper, ...: present on the machine, nothing to do
+        exit 0
+        ;;
+esac
+
+# A knob test such as `[[ -n "$FAKE_X" ]] && exit 1` must not leak its status
+exit 0

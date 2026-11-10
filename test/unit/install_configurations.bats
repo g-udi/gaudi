@@ -1,0 +1,219 @@
+#!/usr/bin/env bats
+# lib/install-configurations.sh (and the per-OS configure.sh wrappers)
+
+load ../helper
+
+setup() {
+    gaudi_sandbox darwin
+    export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates"
+    mkdir -p "$GAUDI_TEMPLATES_LOCATION"
+}
+
+# config <file> <name>: a config script that records its name when applied
+config() {
+    printf '_info="Config %s"\n_command() { printf "%s\\n" >> "$MACHINE/configs.log"; }\n' "$2" "$2" \
+        | write_file "$GAUDI_TEMPLATES_LOCATION/$1"
+}
+
+applied() {
+    [[ -f "$MACHINE/configs.log" ]] && cat "$MACHINE/configs.log"
+    return 0
+}
+
+@test "a missing templates directory is a warning, not a failure" {
+    export GAUDI_TEMPLATES_LOCATION="$SANDBOX/no-templates"
+    run step lib/install-configurations.sh
+    assert_success
+    assert_output_contains "Template directory not found"
+}
+
+@test "--yes applies OS-specific and shared configs in sorted order, not other OSes" {
+    config "configs/b_dock.configs.osx.sh" "dock"
+    config "configs/a_shared.configs.sh" "shared"
+    config "configs/nested/c_finder.configs.osx.sh" "finder"
+    config "configs/d_linux.configs.debian.sh" "linux-only"
+    export GAUDI_ASSUME_YES="true"
+
+    run step lib/install-configurations.sh
+    assert_success
+    assert_equal "$(applied)" "shared
+dock
+finder"
+}
+
+@test "Debian applies debian and shared configs" {
+    gaudi_sandbox debian
+    export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates" GAUDI_ASSUME_YES="true"
+    config "configs/a.configs.osx.sh" "mac-only"
+    config "configs/b.configs.debian.sh" "debian"
+    config "configs/c.configs.sh" "shared"
+
+    run step lib/install-configurations.sh
+    assert_success
+    assert_equal "$(applied)" "debian
+shared"
+}
+
+@test "files that do not follow the naming convention are ignored" {
+    config "configs/plain.sh" "plain"
+    config "configs/typo.confgis.osx.sh" "typo"
+    config "configs/readme.configs.osx.txt" "text"
+    export GAUDI_ASSUME_YES="true"
+
+    run step lib/install-configurations.sh
+    assert_success
+    assert_equal "$(applied)" ""
+}
+
+@test "declining every config finishes the step successfully" {
+    config "configs/a.configs.osx.sh" "a"
+    config "configs/b.configs.osx.sh" "b"
+
+    run step lib/install-configurations.sh
+    assert_success
+    assert_output_contains "Install all recommended configs? [y/N]"
+    assert_output_contains "Config a [y/N]"
+    assert_output_contains "Config b [y/N]"
+    assert_output_contains "STEP-DONE"
+    assert_equal "$(applied)" ""
+}
+
+@test "configs can be picked one by one" {
+    config "configs/a.configs.osx.sh" "a"
+    config "configs/b.configs.osx.sh" "b"
+    config "configs/c.configs.osx.sh" "c"
+    interactive
+
+    # install all: n, then a: y, b: n, c: y
+    run step lib/install-configurations.sh <<< "nyny"
+    assert_success
+    assert_equal "$(applied)" "a
+c"
+}
+
+@test "answering yes to 'install all' applies everything without asking again" {
+    config "configs/a.configs.osx.sh" "a"
+    config "configs/b.configs.osx.sh" "b"
+    interactive
+
+    run step lib/install-configurations.sh <<< "y"
+    assert_success
+    assert_equal "$(applied)" "a
+b"
+    refute_output_contains "Config a [y/N]"
+}
+
+@test "a config without _command is skipped with a warning" {
+    printf '_info="No command here"\n' | write_file "$GAUDI_TEMPLATES_LOCATION/configs/a.configs.osx.sh"
+    config "configs/b.configs.osx.sh" "b"
+    export GAUDI_ASSUME_YES="true"
+
+    run step lib/install-configurations.sh
+    assert_success
+    assert_output_contains "a.configs.osx.sh: _command function is missing"
+    assert_equal "$(applied)" "b"
+}
+
+@test "a config never inherits _command or _info from the previous one" {
+    config "configs/a.configs.osx.sh" "a"
+    printf '# defines nothing\n' | write_file "$GAUDI_TEMPLATES_LOCATION/configs/b.configs.osx.sh"
+    printf '_command() { printf "c\\n" >> "$MACHINE/configs.log"; }\n' | write_file "$GAUDI_TEMPLATES_LOCATION/configs/c.configs.osx.sh"
+    export GAUDI_ASSUME_YES="true"
+
+    run step lib/install-configurations.sh
+    assert_success
+    assert_equal "$(applied)" "a
+c"
+    assert_output_contains "b.configs.osx.sh: _command function is missing"
+    # c has no _info, so its file name is shown, not "Config a"
+    assert_output_contains "c.configs.osx.sh"
+}
+
+@test "a failing config is recorded and the rest still apply" {
+    printf '_info="Broken config"\n_command() { return 3; }\n' | write_file "$GAUDI_TEMPLATES_LOCATION/configs/a.configs.osx.sh"
+    config "configs/b.configs.osx.sh" "b"
+    export GAUDI_ASSUME_YES="true"
+
+    run step lib/install-configurations.sh
+    assert_failure 1
+    assert_equal "$(applied)" "b"
+    assert_output_contains "1 step(s) failed"
+    assert_output_contains "config Broken config"
+}
+
+@test "a config file that fails to load is recorded and the rest still apply" {
+    printf 'false\n' | write_file "$GAUDI_TEMPLATES_LOCATION/configs/a.configs.osx.sh"
+    config "configs/b.configs.osx.sh" "b"
+    export GAUDI_ASSUME_YES="true"
+
+    run step lib/install-configurations.sh
+    assert_failure 1
+    assert_equal "$(applied)" "b"
+    assert_output_contains "config $GAUDI_TEMPLATES_LOCATION/configs/a.configs.osx.sh"
+}
+
+@test "a dry run names the configs without applying them" {
+    config "configs/a.configs.osx.sh" "a"
+    export GAUDI_ASSUME_YES="true" GAUDI_DRY_RUN="true"
+
+    run step lib/install-configurations.sh
+    assert_success
+    assert_output_contains "DRY RUN: config $GAUDI_TEMPLATES_LOCATION/configs/a.configs.osx.sh"
+    assert_equal "$(applied)" ""
+}
+
+@test "configs can call the machine's tools (defaults)" {
+    write_file "$GAUDI_TEMPLATES_LOCATION/configs/finder.configs.osx.sh" <<'EOF'
+_info="Show Finder path bar"
+_command() {
+    defaults write com.apple.finder ShowPathbar -bool true
+}
+EOF
+    export GAUDI_ASSUME_YES="true"
+
+    run step lib/install-configurations.sh
+    assert_success
+    assert_file_contains "$MACHINE/defaults.txt" "write com.apple.finder ShowPathbar -bool true"
+}
+
+@test "lib/osx/configure.sh and lib/debian/configure.sh run the same configuration step" {
+    config "configs/a.configs.sh" "shared"
+    export GAUDI_ASSUME_YES="true"
+
+    run step lib/osx/configure.sh
+    assert_success
+    run step lib/debian/configure.sh
+    assert_success
+    assert_equal "$(applied)" "shared
+shared"
+}
+
+@test "Fedora applies fedora and shared configs through lib/fedora/configure.sh" {
+    gaudi_sandbox fedora
+    export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates" GAUDI_ASSUME_YES="true"
+    config "configs/a.configs.osx.sh" "mac-only"
+    config "configs/b.configs.fedora.sh" "fedora"
+    config "configs/c.configs.sh" "shared"
+
+    run step lib/fedora/configure.sh
+    assert_success
+    assert_equal "$(applied)" "fedora
+shared"
+}
+
+@test "Arch and openSUSE apply their own and shared configs" {
+    # Runs lib/arch/configure.sh and lib/opensuse/configure.sh
+    for os in arch opensuse; do
+        gaudi_sandbox "$os"
+        export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates-$os" GAUDI_ASSUME_YES="true"
+        mkdir -p "$GAUDI_TEMPLATES_LOCATION"
+        config "configs/a.configs.fedora.sh" "fedora-only"
+        config "configs/b.configs.$os.sh" "$os"
+        config "configs/c.configs.sh" "shared"
+
+        run step "lib/$os/configure.sh"
+        assert_success
+        assert_equal "$(applied)" "$os
+shared"
+    done
+}

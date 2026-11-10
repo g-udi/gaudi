@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# Run one bats file for test/run and keep its output and exit status.
+#   run-file <file.bats>      (RESULTS, BATS_BIN and GAUDI_TEST_BASH come from test/run)
+set -uo pipefail
+
+file="$1"
+test_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
+name="${file#"$test_dir"/}"
+name="${name//\//-}"
+
+args=()
+while IFS= read -r argument; do
+    [[ -n "$argument" ]] && args+=("$argument")
+done < "$RESULTS/args"
+
+"$BATS_BIN" ${args[@]+"${args[@]}"} "$file" > "$RESULTS/$name.tap" 2>&1 </dev/null
+printf "%s" "$?" > "$RESULTS/$name.status"
+exit 0

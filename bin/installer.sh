@@ -24,9 +24,10 @@ installSoftwareList() {
     local is_with_prompt="$2"
     local item=""
     shift 2
-    local software_list=("$@")
 
-    for item in "${software_list[@]}"; do
+    # Iterating "$@" (not a copied array) keeps empty lists safe under
+    # `set -u` on the bash 3.2 that ships with macOS
+    for item in "$@"; do
         local software=""
         local software_description=""
 
@@ -43,41 +44,37 @@ installSoftwareList() {
             gaudi::confirm "Install $software?" "n" || continue
         fi
 
-        gaudi::run_install_command "$install_command" "$software"
+        # One broken package must not stop the rest of the list
+        gaudi::run_install_command "$install_command" "$software" \
+            || gaudi::record_failure "$software ($install_command)"
     done
 }
 
-brew_install_or_upgrade() {
-    local package_name="$1"
+# Install everything declared in a Brewfile.
+# brew bundle is idempotent and keeps going past individual failures; it only
+# reports them through its exit status.
+gaudi::bundle_install() {
+    local brewfile="$1"
+    local -a bundle_args=(bundle install "--file=$brewfile")
 
-    if brew list --versions "$package_name" >/dev/null 2>&1; then
-        if brew outdated --quiet "$package_name" >/dev/null 2>&1; then
-            gaudi::log "Upgrading $package_name"
-            brew upgrade "$package_name"
-        else
-            gaudi::success "$package_name is already current"
-        fi
-    else
-        brew install "$package_name"
+    [[ "${GAUDI_BUNDLE_NO_UPGRADE:-false}" == "true" ]] && bundle_args+=(--no-upgrade)
+
+    if [[ "${GAUDI_DRY_RUN:-false}" == "true" ]]; then
+        printf "DRY RUN: brew"
+        printf " %q" "${bundle_args[@]}"
+        printf "\n"
+        return 0
     fi
-}
 
-brew_tap_or_update() {
-    local tap_name="$1"
-
-    if brew tap | grep -Fxq "$tap_name"; then
-        gaudi::success "Tap already configured: $tap_name"
-    else
-        brew tap "$tap_name"
-    fi
+    brew "${bundle_args[@]}"
 }
 
 gem_install_or_update() {
     local subcommand="${1:-install}"
     shift || true
 
-    if [[ "$subcommand" == "install" && "$#" -gt 0 ]] && gem list "$1" --installed >/dev/null 2>&1; then
-        gem update "$@"
+    if [[ "$subcommand" == "install" && "$#" -gt 0 ]] && gem list --installed --exact "$1" >/dev/null 2>&1; then
+        gem update "$@" --user-install
     else
         gem "$subcommand" "$@" --user-install
     fi

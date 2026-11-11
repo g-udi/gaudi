@@ -336,6 +336,50 @@ gaudi::metadata_value() {
     printf "%s" "$value"
 }
 
+# The one rule for a dotfile path (a dotfiles.list entry, or a file under the
+# templates' dotfiles directory): it must name something strictly inside the
+# home directory. Prints the path relative to the home directory, tidied up
+# ("./.zshrc" and ".config/" become ".zshrc" and ".config"), or fails for an
+# empty path, the home directory itself (".", "./"), an absolute or "~" path,
+# anything with "..", and a path that leaves the home directory through a
+# symlinked directory.
+gaudi::dotfile_path() {
+    local entry="$1"
+    local previous=""
+    local home=""
+    local parent=""
+
+    entry="${entry#"${entry%%[![:space:]]*}"}"
+    entry="${entry%"${entry##*[![:space:]]}"}"
+    while [[ "$entry" != "$previous" ]]; do
+        previous="$entry"
+        entry="${entry//\/\///}"
+        entry="${entry//\/.\///}"
+        entry="${entry#./}"
+        entry="${entry%/}"
+        entry="${entry%/.}"
+    done
+    case "$entry" in
+        ""|"."|/*|"~"*|*".."*)
+            return 1
+            ;;
+    esac
+
+    # Compare real directories: the deepest one that exists above the path
+    # has to be the home directory or inside it
+    if home="$(cd -P -- "$HOME" 2>/dev/null && pwd)"; then
+        parent="$HOME/$entry"
+        parent="${parent%/*}"
+        while [[ -n "$parent" && ! -d "$parent" ]]; do
+            parent="${parent%/*}"
+        done
+        parent="$(cd -P -- "${parent:-/}" 2>/dev/null && pwd)" || return 1
+        [[ "$parent" == "$home" || "$parent" == "$home"/* ]] || return 1
+    fi
+
+    printf "%s" "$entry"
+}
+
 gaudi::source_if_exists() {
     local file="$1"
 
@@ -382,21 +426,123 @@ gaudi::run_remote_script() {
     "$interpreter" -c "$script" "$@"
 }
 
-# Source a file and return the status of its last command, without letting a
-# failing command inside it end the whole run. `source file || handle` is not
-# enough: bash 3.2 (the bash macOS ships) still exits under `set -e`.
-gaudi::source_guarded() {
-    local _gaudi_guarded_file="$1"
-    local _gaudi_guarded_status=0
-    local _gaudi_guarded_errexit="false"
+# What stopped the last gaudi::source_guarded or gaudi::call_guarded from
+# succeeding ("line 4 failed with status 1"); empty when it succeeded.
+gaudi_guarded_failure=""
+# The guarded run in progress: its file, its first failing command, and
+# whether it called exit
+gaudi_guarded_file=""
+gaudi_guarded_error=""
+gaudi_guarded_exited=""
+# What `exit` means inside a guarded file: stop the file, never the run
+gaudi_guarded_exit='gaudi_guarded_exited=true; return'
 
-    [[ "$-" == *e* ]] && _gaudi_guarded_errexit="true"
+# ERR trap of a guarded run: remember the first unhandled failing command
+# written in the guarded file itself (not in the scripts or functions it uses).
+#   gaudi::guarded_error <status> <source file> <line> <function>
+gaudi::guarded_error() {
+    [[ "$2" == "$gaudi_guarded_file" && -z "$gaudi_guarded_error" ]] || return 0
+    if [[ "${4:-source}" != "source" && "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+        # bash 3.2 counts lines from the start of the function
+        gaudi_guarded_error="a command in $4() failed with status $1"
+    else
+        gaudi_guarded_error="line $3 failed with status $1"
+    fi
+    return 0
+}
+
+# EXIT trap of a guarded run. Only reached when a template file ends the whole
+# run in a way that cannot be turned into a return (an unset variable under
+# `set -u`, its own `set -e`, `builtin exit`): the run still ends, but with
+# its summary.
+gaudi::guarded_abort() {
+    local status="$1"
+
+    trap - EXIT
+    gaudi::record_failure "$gaudi_guarded_file ended the run early (status $status)"
+    gaudi::report_failures || true
+    exit 1
+}
+
+# Run a template file (a hook, a config, a list) in this shell, so it can use
+# Gaudi's functions and what it exports reaches the steps after it, without
+# letting it end the run or hide a failure:
+#   - a command that fails without the file handling it (the cases `set -e`
+#     would stop at) is a failure, and the file still runs to its end
+#     (bash 3.2 does not see a failing `( ... )` unless it is the last command);
+#   - `exit` stops the file like `return` does and is a failure;
+#   - so is a non-zero status of its last command or of its `return`.
+# With a function name, that function (defined by the file) is called instead
+# of sourcing the file.
+#
+# Always returns 0 and leaves the reason in gaudi_guarded_failure (empty on
+# success). It must be called as a plain statement: bash does not run the ERR
+# trap for anything called from a condition, `!`, `&&` or `||`.
+#   gaudi::guarded <file> [function]
+gaudi::guarded() {
+    local _gaudi_guarded_status=0
+    local _gaudi_guarded_flags="$-"
+    local _gaudi_guarded_aliases="false"
+    local _gaudi_guarded_traps=""
+    # A guarded file may start another guarded run: keep its state
+    local _gaudi_guarded_outer_file="$gaudi_guarded_file"
+    local _gaudi_guarded_outer_error="$gaudi_guarded_error"
+    local _gaudi_guarded_outer_exited="$gaudi_guarded_exited"
+
+    shopt -q expand_aliases && _gaudi_guarded_aliases="true"
+    _gaudi_guarded_traps="$(trap -p ERR EXIT)"
+    gaudi_guarded_file="$1"
+    gaudi_guarded_error=""
+    gaudi_guarded_exited=""
+
+    # Aliases are expanded when a command is read, so this reaches every
+    # `exit` written in the file, including the ones inside its functions.
+    shopt -s expand_aliases
+    alias exit='eval "$gaudi_guarded_exit"'
+    # `source file || handle` is not enough to survive a failing command:
+    # bash 3.2 (the bash macOS ships) still exits under `set -e`.
     set +e
-    # shellcheck source=/dev/null
-    source "$_gaudi_guarded_file"
+    set -E
+    trap 'gaudi::guarded_error "$?" "${BASH_SOURCE[0]}" "$LINENO" "${FUNCNAME[0]:-}"' ERR
+    trap 'gaudi::guarded_abort "$?"' EXIT
+
+    if [[ -n "${2:-}" ]]; then
+        "$2"
+    else
+        # shellcheck source=/dev/null
+        source "$1"
+    fi
     _gaudi_guarded_status=$?
-    [[ "$_gaudi_guarded_errexit" == "true" ]] && set -e
-    return "$_gaudi_guarded_status"
+
+    trap - ERR EXIT
+    eval "$_gaudi_guarded_traps"
+    [[ "$_gaudi_guarded_flags" == *E* ]] || set +E
+    [[ -n "$_gaudi_guarded_outer_file" ]] || unalias exit
+    [[ "$_gaudi_guarded_aliases" == "true" ]] || shopt -u expand_aliases
+
+    gaudi_guarded_failure="$gaudi_guarded_error"
+    if [[ "$gaudi_guarded_exited" == "true" ]]; then
+        gaudi_guarded_failure="it called exit: use return to stop early"
+    elif [[ -z "$gaudi_guarded_failure" && "$_gaudi_guarded_status" -ne 0 ]]; then
+        gaudi_guarded_failure="it ended with status $_gaudi_guarded_status"
+    fi
+    gaudi_guarded_file="$_gaudi_guarded_outer_file"
+    gaudi_guarded_error="$_gaudi_guarded_outer_error"
+    gaudi_guarded_exited="$_gaudi_guarded_outer_exited"
+
+    [[ "$_gaudi_guarded_flags" != *e* ]] || set -e
+    return 0
+}
+
+# Source a template file; see gaudi::guarded.
+gaudi::source_guarded() {
+    gaudi::guarded "$1"
+}
+
+# Call a function a template file defined; see gaudi::guarded.
+#   gaudi::call_guarded <file> <function>
+gaudi::call_guarded() {
+    gaudi::guarded "$1" "$2"
 }
 
 # Source every template hook whose file name matches the given pattern.
@@ -414,7 +560,8 @@ gaudi::run_hooks_matching() {
             continue
         fi
         gaudi::log "Running hook: $hook"
-        gaudi::source_guarded "$hook" || gaudi::record_failure "hook $hook"
+        gaudi::source_guarded "$hook"
+        [[ -z "$gaudi_guarded_failure" ]] || gaudi::record_failure "hook $hook: $gaudi_guarded_failure"
     done 4< <(find "$GAUDI_TEMPLATES_LOCATION" -type f -iname "$pattern" -print | sort)
 }
 

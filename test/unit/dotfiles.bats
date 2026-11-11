@@ -72,6 +72,46 @@ template_dotfile() {
     assert_output_contains "Copied 0 dotfile(s)"
 }
 
+@test "backup refuses the home directory itself, however it is written" {
+    printf 'secret\n' | home_file ".ssh/id_ed25519"
+    printf 'x\n' | home_file ".zshrc"
+    printf '.\n./\n./.\n .  \n././\n.zshrc\n' > "$GAUDI_TEMPLATES_LOCATION/dotfiles.list"
+    run backup
+    assert_success
+    assert_output_contains "Skipping '.' in"
+    assert_output_contains "Skipping './' in"
+    assert_output_contains "Skipping './.' in"
+    assert_output_contains "Skipping '././' in"
+    assert_output_contains "Copied 1 dotfile(s)"
+    assert_equal "$(ls -A "$SANDBOX/out/dotfiles")" ".zshrc"
+}
+
+@test "backup refuses a path that leaves the home directory through a symlink" {
+    mkdir -p "$SANDBOX/elsewhere"
+    printf 'outside\n' > "$SANDBOX/elsewhere/file.txt"
+    ln -s "$SANDBOX/elsewhere" "$HOME/link"
+    ln -s "$HOME" "$HOME/.config-link"
+    printf 'link/file.txt\n.config-link/.\n' > "$GAUDI_TEMPLATES_LOCATION/dotfiles.list"
+    run backup
+    assert_success
+    assert_output_contains "Skipping 'link/file.txt'"
+    assert_output_contains "Copied 1 dotfile(s)"
+    # The link to the home directory is copied as a link, never followed
+    [[ -L "$SANDBOX/out/dotfiles/.config-link" ]]
+    refute_file_exists "$SANDBOX/out/dotfiles/link"
+}
+
+@test "backup tidies ./ and trailing slashes instead of refusing them" {
+    printf 'x\n' | home_file ".zshrc"
+    printf 'y\n' | home_file ".config/kitty/kitty.conf"
+    printf './.zshrc\n.config/kitty/\n' > "$GAUDI_TEMPLATES_LOCATION/dotfiles.list"
+    run backup
+    assert_success
+    assert_output_contains "Copied 2 dotfile(s)"
+    assert_file_exists "$SANDBOX/out/dotfiles/.zshrc"
+    assert_file_exists "$SANDBOX/out/dotfiles/.config/kitty/kitty.conf"
+}
+
 @test "backing up again replaces the previous copy, including files that were removed" {
     printf 'one\n' | home_file ".config/app/a.conf"
     printf 'two\n' | home_file ".config/app/b.conf"
@@ -207,6 +247,21 @@ template_dotfile() {
     assert_failure 1
     assert_output_contains "dotfile $HOME/.blocked/a.conf"
     assert_file_contains "$HOME/.zshrc" "b"
+}
+
+@test "restore refuses a file that would land outside the home directory" {
+    mkdir -p "$SANDBOX/elsewhere"
+    ln -s "$SANDBOX/elsewhere" "$HOME/link"
+    printf 'x\n' | template_dotfile "link/file.txt"
+    printf 'y\n' | template_dotfile ".zshrc"
+    export GAUDI_ASSUME_YES="true"
+
+    run restore
+    assert_success
+    assert_output_contains "Skipping $GAUDI_TEMPLATES_LOCATION/dotfiles/link/file.txt"
+    assert_output_contains "Restore these 1 dotfile(s)"
+    assert_file_exists "$HOME/.zshrc"
+    refute_file_exists "$SANDBOX/elsewhere/file.txt"
 }
 
 @test "backup then restore brings the files back on another machine" {

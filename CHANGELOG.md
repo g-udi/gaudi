@@ -2,6 +2,19 @@
 
 All notable changes to Gaudi are recorded here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Changed
+
+- A hook, configuration script or list file is reported as failed when any command in it fails without the script handling it (the rule `set -e` uses), not only when its last command fails. The rest of the script still runs. The summary names the line.
+- `exit` in a hook or configuration script stops that script instead of the whole setup, and is reported as a failure: use `return` to stop early.
+
+### Fixed
+
+- `gaudi backup` no longer stops halfway, without a summary, when `apt-mark`, `dnf`, `pacman` or `zypper` cannot list the installed packages. The failure is reported, no list is written for that manager, and the other managers and the dotfiles are still backed up.
+- A `dotfiles.list` entry of `.` or `./` copied the whole home directory into the backup. Backup, restore and `gaudi check` now share one rule: a path must be inside the home directory, and may not be the home directory itself or leave it through a symlinked directory.
+- A hook that ended the run outright (an unset variable, its own `set -e`) left no summary; the failures are now printed before setup exits.
+
 ## 2.0.0 - 2026-11-10
 
 Software moves to Brewfiles. Templates written for 1.x need converting: `gaudi check` lists what has to change.

@@ -232,7 +232,7 @@ while IFS= read -r dotfiles_list; do
         entry="${entry%%#*}"
         entry="${entry#"${entry%%[![:space:]]*}"}"
         [[ -n "$entry" ]] || continue
-        if [[ "$entry" == /* || "$entry" == "~"* || "$entry" == *".."* ]]; then
+        if ! gaudi::dotfile_path "$entry" >/dev/null; then
             problem "$dotfiles_list" "line $line_number: '$entry' must be a path inside the home directory, written relative to it"
         fi
     done < "$dotfiles_list"

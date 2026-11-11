@@ -319,7 +319,9 @@ Hooks are shell scripts in the templates that Gaudi sources around the software 
 
 A file named plain `Brewfile` goes by the name `default`, so its hooks are `pre.bundle-default.hooks.sh` and `post.bundle-default.hooks.sh`.
 
-Hooks run inside the setup, so they can use its helpers: `command_exists <tool>`, `gaudi::confirm "Question?" "n"` (which follows `--yes` and the no-terminal defaults), and `gaudi::record_failure "what failed"` to report a problem in the final summary.
+Hooks run inside the setup, so they can use its helpers: `command_exists <tool>`, `gaudi::confirm "Question?" "n"` (which follows `--yes` and the no-terminal defaults), and `gaudi::record_failure "what failed"` to report a problem in the final summary. What a hook exports (variables, `PATH`) reaches the steps after it.
+
+A hook, like a configuration script, is reported as failed when one of its commands fails and nothing in the script deals with it: the rule is the one `set -e` uses, so a command inside `if`, or followed by `|| ...`, does not count. The rest of the script still runs. Use `return` to stop a hook early. `exit` also only stops the hook, never the setup, and is reported as a failure.
 
 ### Configuration Scripts
 
@@ -354,6 +356,8 @@ Setup first asks whether to apply all of them, and otherwise asks for each one, 
 
 Everything under `dotfiles/` at the top of the templates is restored by `gaudi setup`, keeping the same layout (`dotfiles/.config/kitty/kitty.conf` goes to `~/.config/kitty/kitty.conf`). Setup lists what would change and asks once. A file that is already identical is left alone; a different one is first moved aside as `<file>.gaudi-backup`.
 
+Every path has to name something inside the home directory. The home directory itself (`.`, `./`), absolute and `~` paths, anything with `..`, and paths that leave the home directory through a symlinked directory are refused by `gaudi backup`, by the restore in `gaudi setup`, and reported by `gaudi check`.
+
 Do not list secrets such as SSH keys or tokens when the templates repository is public.
 
 ### Checking templates
@@ -370,7 +374,7 @@ gaudi check --online       # also ask Homebrew whether every formula and cask st
 - a hook or configuration script whose file name means it never runs (a typo, a Brewfile that does not exist, an unknown OS)
 - a list without its `@List` line or its array, and old lists that are no longer installed
 - a configuration script without `_command`
-- `dotfiles.list` entries that point outside the home directory
+- `dotfiles.list` entries that are the home directory itself or point outside it
 
 It exits 1 when it finds errors, so it can guard a templates repository in CI; the [default templates](https://github.com/g-udi/gaudi-templates) do exactly that. With `--online` it also reports formulae and casks that Homebrew has removed, disabled or deprecated (one lookup per package, so it is slow).
 

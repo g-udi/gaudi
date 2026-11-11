@@ -523,6 +523,30 @@ EOF
     assert_output_contains "hook $GAUDI_TEMPLATES_LOCATION/pre.x.1.hooks.sh"
 }
 
+@test "run_hooks_matching records a hook whose command fails in the middle, with the line" {
+    export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates"
+    printf 'printf "start\\n"\nfalse\nprintf "end\\n"\n' | write_file "$GAUDI_TEMPLATES_LOCATION/pre.x.hooks.sh"
+
+    run call eval 'gaudi::run_hooks_matching "pre.x.hooks.sh"; gaudi::report_failures'
+    assert_failure 1
+    assert_output_contains "end"
+    assert_output_contains "  - hook $GAUDI_TEMPLATES_LOCATION/pre.x.hooks.sh: line 2 failed with status 1"
+}
+
+@test "run_hooks_matching: a hook that calls exit is recorded and the next hook still runs" {
+    export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates"
+    printf 'printf "first-ran\\n"\nexit 0\nprintf "not-reached\\n"\n' | write_file "$GAUDI_TEMPLATES_LOCATION/pre.x.1.hooks.sh"
+    printf 'printf "second-ran\\n"\n' | write_file "$GAUDI_TEMPLATES_LOCATION/pre.x.2.hooks.sh"
+
+    run call eval 'gaudi::run_hooks_matching "pre.x*.hooks.sh"; gaudi::report_failures'
+    assert_failure 1
+    assert_output_contains "first-ran"
+    refute_output_contains "not-reached"
+    assert_output_contains "second-ran"
+    assert_output_contains "1 step(s) failed"
+    assert_output_contains "  - hook $GAUDI_TEMPLATES_LOCATION/pre.x.1.hooks.sh: it called exit: use return to stop early"
+}
+
 @test "run_hooks_matching only names hooks in a dry run" {
     export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates" GAUDI_DRY_RUN="true"
     printf 'printf "must-not-run\\n"\n' | write_file "$GAUDI_TEMPLATES_LOCATION/pre.x.hooks.sh"
@@ -565,43 +589,204 @@ EOF
 
 # --- sourcing template files safely -----------------------------------------------------
 
-@test "source_guarded returns the status of the file's last command" {
-    printf 'true\n' > "$SANDBOX/good.sh"
-    printf 'false\n' > "$SANDBOX/bad.sh"
-    run call gaudi::source_guarded "$SANDBOX/good.sh"
-    assert_success
-    run call gaudi::source_guarded "$SANDBOX/bad.sh"
-    assert_failure 1
+# Where a failure inside a function is reported: bash 3.2 cannot tell the line
+#   in_function <function> <line>
+in_function() {
+    if [[ "$("$BASEBIN/bash" -c 'printf "%s" "${BASH_VERSINFO[0]}"')" -lt 4 ]]; then
+        printf "a command in %s()" "$1"
+    else
+        printf "line %s" "$2"
+    fi
 }
 
-@test "source_guarded does not let a failing command end the run" {
-    printf 'false\nprintf "after-the-failure\\n"\n' > "$SANDBOX/hook.sh"
+# What a guarded run reports: "ok", or why it failed
+guarded_result='printf "result=%s\n" "${gaudi_guarded_failure:-ok}"'
+
+@test "source_guarded always returns 0 and reports a failing last command" {
+    printf 'true\n' > "$SANDBOX/good.sh"
+    printf 'false\n' > "$SANDBOX/bad.sh"
+    export GUARDED_FILE="$SANDBOX/good.sh"
+    run call eval 'gaudi::source_guarded "$GUARDED_FILE";'"$guarded_result"
+    assert_success
+    assert_output_equals "result=ok"
+    export GUARDED_FILE="$SANDBOX/bad.sh"
+    run call eval 'gaudi::source_guarded "$GUARDED_FILE";'"$guarded_result"
+    assert_success
+    assert_output_equals "result=line 1 failed with status 1"
+}
+
+@test "source_guarded reports a command that fails in the middle of the file, and runs the rest" {
+    printf 'printf "one\\n"\nls /no/such/dir 2>/dev/null\nprintf "after-the-failure\\n"\n' > "$SANDBOX/hook.sh"
     export GUARDED_FILE="$SANDBOX/hook.sh"
-    run call eval 'gaudi::source_guarded "$GUARDED_FILE" || true; printf "run-continues\n"'
+    run call eval 'gaudi::source_guarded "$GUARDED_FILE";'"$guarded_result"'; printf "run-continues\n"'
     assert_success
     assert_output_contains "after-the-failure"
+    assert_output_contains "result=line 2 failed with status"
     assert_output_contains "run-continues"
 }
 
-@test "source_guarded honours an early return and its status" {
+@test "source_guarded reports the first failure only" {
+    printf 'sh -c "exit 4"\nsh -c "exit 5"\n' > "$SANDBOX/hook.sh"
+    export GUARDED_FILE="$SANDBOX/hook.sh"
+    run call eval 'gaudi::source_guarded "$GUARDED_FILE";'"$guarded_result"
+    assert_output_equals "result=line 1 failed with status 4"
+}
+
+@test "source_guarded does not count failures the file handles" {
+    cat > "$SANDBOX/hook.sh" <<'EOF'
+helper() { false; }
+false || true
+if false; then :; fi
+if ! helper; then :; fi
+helper || printf "handled\n"
+[[ -n "" ]] && printf "never\n"
+while false; do :; done
+for item in a b; do [[ "$item" == "a" ]] && printf "a\n"; done
+found="$(printf "x" | grep y || true)"
+command_exists no-such-tool || printf "missing\n"
+gaudi::confirm "Question?" "n" || printf "declined\n"
+return 0
+EOF
+    export GUARDED_FILE="$SANDBOX/hook.sh"
+    run stdout_of call eval 'gaudi::source_guarded "$GUARDED_FILE";'"$guarded_result"
+    assert_success
+    assert_output_contains "declined"
+    assert_output_contains "result=ok"
+}
+
+@test "source_guarded counts a failure inside a function of the file, but not inside the scripts it sources" {
+    printf 'false\nprintf "third-party-ran\\n"\n' > "$SANDBOX/third-party.sh"
+    printf 'source "%s"\nprintf "sourced-fine\\n"\n' "$SANDBOX/third-party.sh" > "$SANDBOX/hook.sh"
+    export GUARDED_FILE="$SANDBOX/hook.sh"
+    run call eval 'gaudi::source_guarded "$GUARDED_FILE";'"$guarded_result"
+    assert_output_contains "third-party-ran"
+    assert_output_contains "result=ok"
+
+    printf 'work() {\n    false\n    true\n}\nwork\n' > "$SANDBOX/hook.sh"
+    run call eval 'gaudi::source_guarded "$GUARDED_FILE";'"$guarded_result"
+    assert_output_equals "result=$(in_function work 2) failed with status 1"
+}
+
+@test "source_guarded honours an early return and reports its status" {
     printf 'return 3\nprintf "not-reached\\n"\n' > "$SANDBOX/hook.sh"
-    run call gaudi::source_guarded "$SANDBOX/hook.sh"
-    assert_failure 3
+    export GUARDED_FILE="$SANDBOX/hook.sh"
+    run call eval 'gaudi::source_guarded "$GUARDED_FILE";'"$guarded_result"
+    assert_success
+    assert_output_equals "result=it ended with status 3"
+
+    printf 'return 0\nprintf "not-reached\\n"\n' > "$SANDBOX/hook.sh"
+    run call eval 'gaudi::source_guarded "$GUARDED_FILE";'"$guarded_result"
+    assert_output_equals "result=ok"
+}
+
+@test "source_guarded: exit stops the file, not the run, and is a failure even with status 0" {
+    for code in 'exit 0' 'exit 7' 'true || exit 0; command_exists no-such-tool || exit' 'false && exit 0; exit 2'; do
+        printf 'printf "started\\n"\n%s\nprintf "not-reached\\n"\n' "$code" > "$SANDBOX/hook.sh"
+        export GUARDED_FILE="$SANDBOX/hook.sh"
+        run call eval 'gaudi::source_guarded "$GUARDED_FILE";'"$guarded_result"'; printf "run-continues\n"'
+        assert_success
+        assert_output_contains "started"
+        refute_output_contains "not-reached"
+        assert_output_contains "result=it called exit: use return to stop early"
+        assert_output_contains "run-continues"
+    done
+}
+
+@test "source_guarded: exit in a subshell of the file still only ends that subshell" {
+    printf '(exit 0)\nvalue="$(printf "kept"; exit 0)"\nprintf "%%s\\n" "$value"\n' > "$SANDBOX/hook.sh"
+    export GUARDED_FILE="$SANDBOX/hook.sh"
+    run call eval 'gaudi::source_guarded "$GUARDED_FILE";'"$guarded_result"
+    assert_output_equals "kept
+result=ok"
+}
+
+@test "source_guarded leaves exit, aliases, traps and shell options as they were" {
+    printf 'exit 1\n' > "$SANDBOX/hook.sh"
+    export GUARDED_FILE="$SANDBOX/hook.sh"
+    run call eval 'trap "printf \"my-exit-trap\n\"" EXIT; before="$-"; gaudi::source_guarded "$GUARDED_FILE"; [[ "$-" == "$before" ]]; shopt -q expand_aliases && printf "aliases-on\n"; alias; trap -p ERR; printf "before-exit\n"; exit 5; printf "must-not-print\n"'
+    assert_failure 5
+    assert_output_equals "before-exit
+my-exit-trap"
+}
+
+@test "source_guarded: a file that ends the whole run still gets the failure summary" {
+    printf 'printf "%%s\\n" "$NO_SUCH_VARIABLE"\nprintf "not-reached\\n"\n' > "$SANDBOX/hook.sh"
+    export GUARDED_FILE="$SANDBOX/hook.sh"
+    run call eval 'gaudi::record_failure "earlier step"; gaudi::source_guarded "$GUARDED_FILE"; printf "must-not-print\n"'
+    assert_failure 1
     refute_output_contains "not-reached"
+    refute_output_contains "must-not-print"
+    assert_output_contains "2 step(s) failed"
+    assert_output_contains "  - earlier step"
+    assert_output_contains "  - $SANDBOX/hook.sh ended the run early (status 1)"
+
+    # The same when the file switches exit-on-error on, or insists on leaving
+    printf 'set -e\nfalse\n' > "$SANDBOX/hook.sh"
+    run call gaudi::source_guarded "$SANDBOX/hook.sh"
+    assert_failure 1
+    assert_output_contains "$SANDBOX/hook.sh ended the run early (status 1)"
+    printf 'builtin exit 9\n' > "$SANDBOX/hook.sh"
+    run call gaudi::source_guarded "$SANDBOX/hook.sh"
+    assert_failure 1
+    assert_output_contains "$SANDBOX/hook.sh ended the run early (status 9)"
+}
+
+@test "guarded_error only notes failures of the guarded file, and only the first" {
+    run call eval 'gaudi_guarded_file="/t/hook.sh"; gaudi::guarded_error 2 /other/file.sh 9 source; gaudi::guarded_error 3 /t/hook.sh 4 source; gaudi::guarded_error 5 /t/hook.sh 6 source; printf "%s" "$gaudi_guarded_error"'
+    assert_output_equals "line 4 failed with status 3"
+}
+
+@test "guarded_abort records the file, prints the summary and exits 1" {
+    run call eval 'gaudi_guarded_file="/t/hook.sh"; gaudi::guarded_abort 3; printf "must-not-print\n"'
+    assert_failure 1
+    assert_output_contains "1 step(s) failed"
+    assert_output_contains "/t/hook.sh ended the run early (status 3)"
+    refute_output_contains "must-not-print"
+}
+
+@test "call_guarded runs a function of the file under the same rules" {
+    cat > "$SANDBOX/config.sh" <<'EOF'
+fine() { false || true; printf "fine-ran\n"; }
+broken() {
+    false
+    printf "broken-finished\n"
+}
+leaves() { printf "leaving\n"; exit 0; printf "not-reached\n"; }
+EOF
+    export GUARDED_FILE="$SANDBOX/config.sh"
+    run call eval 'gaudi::source_guarded "$GUARDED_FILE"; gaudi::call_guarded "$GUARDED_FILE" fine;'"$guarded_result"'; gaudi::call_guarded "$GUARDED_FILE" broken;'"$guarded_result"'; gaudi::call_guarded "$GUARDED_FILE" leaves;'"$guarded_result"'; printf "run-continues\n"'
+    assert_success
+    assert_output_equals "fine-ran
+result=ok
+broken-finished
+result=$(in_function broken 3) failed with status 1
+leaving
+result=it called exit: use return to stop early
+run-continues"
+}
+
+@test "a guarded file can start another guarded run without losing its own failure" {
+    printf 'false\n' > "$SANDBOX/inner.sh"
+    printf 'ls /no/such/dir 2>/dev/null\ngaudi::source_guarded "%s"\nprintf "inner=%%s\\n" "$gaudi_guarded_failure"\nexit 0\n' "$SANDBOX/inner.sh" > "$SANDBOX/outer.sh"
+    export GUARDED_FILE="$SANDBOX/outer.sh"
+    run call eval 'gaudi::source_guarded "$GUARDED_FILE";'"$guarded_result"
+    assert_output_equals "inner=line 1 failed with status 1
+result=it called exit: use return to stop early"
 }
 
 @test "source_guarded keeps what the file defines" {
-    printf 'FROM_FILE="kept"\nfrom_file() { printf "function-kept"; }\n' > "$SANDBOX/defs.sh"
+    printf 'FROM_FILE="kept"\nexport FOR_LATER_STEPS="exported"\nfrom_file() { printf "function-kept"; }\n' > "$SANDBOX/defs.sh"
     export GUARDED_FILE="$SANDBOX/defs.sh"
-    run call eval 'gaudi::source_guarded "$GUARDED_FILE"; printf "%s " "$FROM_FILE"; from_file'
+    run call eval 'gaudi::source_guarded "$GUARDED_FILE"; printf "%s " "$FROM_FILE"; env | grep "^FOR_LATER_STEPS="; from_file'
     assert_success
-    assert_output_equals "kept function-kept"
+    assert_output_equals "kept FOR_LATER_STEPS=exported
+function-kept"
 }
 
 @test "source_guarded switches exit-on-error back on afterwards" {
     printf 'false\n' > "$SANDBOX/bad.sh"
     export GUARDED_FILE="$SANDBOX/bad.sh"
-    run call eval 'gaudi::source_guarded "$GUARDED_FILE" || true; false; printf "must-not-print\n"'
+    run call eval 'gaudi::source_guarded "$GUARDED_FILE"; false; printf "must-not-print\n"'
     assert_failure
     refute_output_contains "must-not-print"
 }
@@ -612,6 +797,44 @@ EOF
     run call eval 'set +e; gaudi::source_guarded "$GUARDED_FILE"; false; printf "still-running\n"'
     assert_success
     assert_output_contains "still-running"
+}
+
+# --- dotfile paths ----------------------------------------------------------------------------
+
+@test "dotfile_path prints a tidied path for anything inside the home directory" {
+    run call gaudi::dotfile_path ".zshrc"
+    assert_output_equals ".zshrc"
+    run call gaudi::dotfile_path "./.config//kitty/./kitty.conf"
+    assert_output_equals ".config/kitty/kitty.conf"
+    run call gaudi::dotfile_path "  .config/kitty/  "
+    assert_output_equals ".config/kitty"
+    run call gaudi::dotfile_path "Library/Application Support/App/settings.json"
+    assert_success
+    assert_output_equals "Library/Application Support/App/settings.json"
+}
+
+@test "dotfile_path refuses the home directory itself and anything outside it" {
+    # shellcheck disable=SC2088  # a literal "~" is exactly what is being refused
+    for entry in "" " " "." "./" "./." ".//" "././" "/" "/etc/hosts" "~" "~/.zshrc" ".." "../x" "a/../../x" "a/.."; do
+        run call gaudi::dotfile_path "$entry"
+        assert_failure 1
+        assert_output_equals ""
+    done
+}
+
+@test "dotfile_path refuses a path that leaves the home directory through a symlink" {
+    mkdir -p "$SANDBOX/elsewhere/deep" "$HOME/real"
+    ln -s "$SANDBOX/elsewhere" "$HOME/out"
+    ln -s "$HOME/real" "$HOME/in"
+    run call gaudi::dotfile_path "out/deep/file"
+    assert_failure 1
+    run call gaudi::dotfile_path "out/new/file"
+    assert_failure 1
+    # The link itself is inside the home directory, and so is a link that stays inside
+    run call gaudi::dotfile_path "out"
+    assert_output_equals "out"
+    run call gaudi::dotfile_path "in/file"
+    assert_output_equals "in/file"
 }
 
 # --- running as root ------------------------------------------------------------------------

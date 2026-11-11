@@ -152,6 +152,44 @@ c"
     assert_output_contains "config $GAUDI_TEMPLATES_LOCATION/configs/a.configs.osx.sh"
 }
 
+@test "a config whose command fails in the middle of _command is recorded" {
+    printf '_info="Half config"\n_command() {\n    false\n    printf "half\\n" >> "$MACHINE/configs.log"\n}\n' | write_file "$GAUDI_TEMPLATES_LOCATION/configs/a.configs.osx.sh"
+    config "configs/b.configs.osx.sh" "b"
+    export GAUDI_ASSUME_YES="true"
+
+    run step lib/install-configurations.sh
+    assert_failure 1
+    assert_equal "$(applied)" "half
+b"
+    assert_output_contains "1 step(s) failed"
+    assert_output_contains "  - config Half config: "
+    assert_output_contains " failed with status 1"
+}
+
+@test "a config that calls exit, while loading or in _command, is recorded and the rest still apply" {
+    printf 'exit 0\n_command() { :; }\n' | write_file "$GAUDI_TEMPLATES_LOCATION/configs/a.configs.osx.sh"
+    printf '_info="Leaving config"\n_command() { exit 3; }\n' | write_file "$GAUDI_TEMPLATES_LOCATION/configs/b.configs.osx.sh"
+    config "configs/c.configs.osx.sh" "c"
+    export GAUDI_ASSUME_YES="true"
+
+    run step lib/install-configurations.sh
+    assert_failure 1
+    assert_equal "$(applied)" "c"
+    assert_output_contains "STEP-DONE"
+    assert_output_contains "2 step(s) failed"
+    assert_output_contains "  - config $GAUDI_TEMPLATES_LOCATION/configs/a.configs.osx.sh: it called exit: use return to stop early"
+    assert_output_contains "  - config Leaving config: it called exit: use return to stop early"
+}
+
+@test "a config that handles its own failures is not recorded" {
+    printf '_info="Careful config"\n_command() {\n    false || true\n    if ! command_exists no-such-tool; then printf "careful\\n" >> "$MACHINE/configs.log"; fi\n}\n' | write_file "$GAUDI_TEMPLATES_LOCATION/configs/a.configs.osx.sh"
+    export GAUDI_ASSUME_YES="true"
+
+    run step lib/install-configurations.sh
+    assert_success
+    assert_equal "$(applied)" "careful"
+}
+
 @test "a dry run names the configs without applying them" {
     config "configs/a.configs.osx.sh" "a"
     export GAUDI_ASSUME_YES="true" GAUDI_DRY_RUN="true"

@@ -35,6 +35,38 @@ full_setup() {
     assert_called "brew cleanup -s"
 }
 
+@test "a hook that calls exit and a hook that fails halfway are reported, and setup still finishes" {
+    printf 'printf "pre.bundle\\n" >> "$MACHINE/hooks.log"\nexit 0\nprintf "after-exit\\n" >> "$MACHINE/hooks.log"\n' > "$GAUDI_TEMPLATES_LOCATION/hooks/pre.bundle.hooks.sh"
+    printf 'false\nprintf "post.bundle\\n" >> "$MACHINE/hooks.log"\n' > "$GAUDI_TEMPLATES_LOCATION/hooks/post.bundle.hooks.sh"
+
+    run full_setup
+    assert_failure 1
+    assert_output_contains "2 step(s) failed:"
+    assert_output_contains "hook $GAUDI_TEMPLATES_LOCATION/hooks/pre.bundle.hooks.sh: it called exit: use return to stop early"
+    assert_output_contains "hook $GAUDI_TEMPLATES_LOCATION/hooks/post.bundle.hooks.sh: line 1 failed with status 1"
+    assert_output_contains "Gaudi setup finished with failures"
+    refute_file_contains "$MACHINE/hooks.log" "after-exit"
+    assert_file_contains "$MACHINE/hooks.log" "post.bundle"
+
+    # The rest of the run still happened
+    assert_file_contains "$MACHINE/brew/brew.txt" "jq"
+    assert_file_contains "$MACHINE/brew/cask.txt" "kitty"
+    assert_file_contains "$MACHINE/gem.txt" "tmuxinator"
+    assert_file_contains "$MACHINE/defaults.txt" "ShowPathbar"
+    assert_called "brew cleanup -s"
+}
+
+@test "a hook that ends the run outright (an unset variable) still gets the failure summary" {
+    printf 'printf "%%s\\n" "$NO_SUCH_VARIABLE"\n' > "$GAUDI_TEMPLATES_LOCATION/hooks/post.bundle.hooks.sh"
+
+    run full_setup
+    assert_failure 1
+    assert_output_contains "1 step(s) failed:"
+    assert_output_contains "$GAUDI_TEMPLATES_LOCATION/hooks/post.bundle.hooks.sh ended the run early (status 1)"
+    # Everything before the hook was done
+    assert_file_contains "$MACHINE/brew/brew.txt" "jq"
+}
+
 @test "after fixing what failed, running the same command again finishes the job" {
     export FAKE_BREW_FAIL="raycast"
     run full_setup

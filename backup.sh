@@ -28,7 +28,7 @@ write_list() {
             printf '  "%s"\n' "$package_name"
         done
         printf ")\n"
-    } > "$file"
+    } > "$file" || return 1
     gaudi::success "Wrote $file"
 }
 
@@ -58,43 +58,71 @@ backup_bundle() {
     return 0
 }
 
+# The package queries below are captured before anything is written: a query
+# that fails is recorded and leaves no list behind, instead of ending the
+# backup (`set -e`) or passing for a machine with no packages.
+
 # Only packages the user asked for, not the whole base system
 backup_apt() {
+    local packages=""
+
     if ! gaudi::command_exists apt-mark; then
         gaudi::warn "Skipping apt backup: apt-mark is not available"
         return 0
     fi
 
-    apt-mark showmanual 2>/dev/null | sort | write_list "$BACKUP_DIR/default.apt.list.sh" aptList
+    if ! packages="$(apt-mark showmanual 2>/dev/null)"; then
+        gaudi::record_failure "apt backup: apt-mark showmanual"
+        return 0
+    fi
+    printf "%s\n" "$packages" | sort | write_list "$BACKUP_DIR/default.apt.list.sh" aptList
 }
 
 backup_dnf() {
+    local packages=""
+
     if ! gaudi::command_exists dnf; then
         gaudi::warn "Skipping dnf backup: dnf is not available"
         return 0
     fi
 
-    dnf repoquery --userinstalled --queryformat '%{name}\n' 2>/dev/null | sort -u | write_list "$BACKUP_DIR/default.dnf.list.sh" dnfList
+    if ! packages="$(dnf repoquery --userinstalled --queryformat '%{name}\n' 2>/dev/null)"; then
+        gaudi::record_failure "dnf backup: dnf repoquery --userinstalled"
+        return 0
+    fi
+    printf "%s\n" "$packages" | sort -u | write_list "$BACKUP_DIR/default.dnf.list.sh" dnfList
 }
 
 backup_pacman() {
+    local packages=""
+
     if ! gaudi::command_exists pacman; then
         gaudi::warn "Skipping pacman backup: pacman is not available"
         return 0
     fi
 
     # -Qqe: explicitly installed packages, names only
-    pacman -Qqe 2>/dev/null | sort -u | write_list "$BACKUP_DIR/default.pacman.list.sh" pacmanList
+    if ! packages="$(pacman -Qqe 2>/dev/null)"; then
+        gaudi::record_failure "pacman backup: pacman -Qqe"
+        return 0
+    fi
+    printf "%s\n" "$packages" | sort -u | write_list "$BACKUP_DIR/default.pacman.list.sh" pacmanList
 }
 
 backup_zypper() {
+    local packages=""
+
     if ! gaudi::command_exists zypper; then
         gaudi::warn "Skipping zypper backup: zypper is not available"
         return 0
     fi
 
     # The table is "status | repository | name | version | arch"
-    zypper --quiet packages --userinstalled 2>/dev/null \
+    if ! packages="$(zypper --quiet packages --userinstalled 2>/dev/null)"; then
+        gaudi::record_failure "zypper backup: zypper packages --userinstalled"
+        return 0
+    fi
+    printf "%s\n" "$packages" \
         | awk -F'|' 'NF >= 5 && $1 ~ /i/ { gsub(/^[ \t]+|[ \t]+$/, "", $3); if ($3 != "" && $3 != "Name") print $3 }' \
         | sort -u | write_list "$BACKUP_DIR/default.zypper.list.sh" zypperList
 }
@@ -124,6 +152,7 @@ backup_gem() {
 backup_dotfiles() {
     local list=""
     local entry=""
+    local path=""
     local copied=0
 
     [[ -d "$GAUDI_TEMPLATES_LOCATION" ]] && list="$(find "$GAUDI_TEMPLATES_LOCATION" -type f -name "dotfiles.list" -print | sort | head -n 1)"
@@ -138,10 +167,11 @@ backup_dotfiles() {
         entry="${entry%"${entry##*[![:space:]]}"}"
         [[ -n "$entry" ]] || continue
 
-        if [[ "$entry" == /* || "$entry" == *".."* ]]; then
+        if ! path="$(gaudi::dotfile_path "$entry")"; then
             gaudi::warn "Skipping '$entry' in $list: paths must be inside the home directory"
             continue
         fi
+        entry="$path"
         if [[ ! -e "$HOME/$entry" ]]; then
             gaudi::warn "Skipping '$entry': not found in $HOME"
             continue
@@ -168,7 +198,8 @@ default_managers="bundle gem dotfiles"
 for manager in ${GAUDI_BACKUP_MANAGERS:-$default_managers}; do
     case "$manager" in
         bundle|apt|dnf|pacman|zypper|gem|dotfiles)
-            "backup_$manager"
+            # Whatever else goes wrong in one manager must not stop the others
+            "backup_$manager" || gaudi::record_failure "$manager backup"
             ;;
         brew|cask|tap|mas|npm|pip|go)
             gaudi::warn "'$manager' is now part of the Brewfile: use GAUDI_BACKUP_MANAGERS=bundle"

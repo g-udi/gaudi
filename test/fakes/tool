@@ -17,6 +17,8 @@
 #   FAKE_DNF_CLEAN_FAIL        non-empty: `dnf autoremove` and `dnf clean` fail
 #   FAKE_PACMAN_FAIL           space-separated packages pacman cannot install ("cache": -Sc fails)
 #   FAKE_ZYPPER_FAIL           space-separated packages zypper cannot install ("cache": clean fails)
+#   FAKE_QUERY_FAIL            non-empty: listing the installed packages fails (apt-mark,
+#                              dnf repoquery, pacman -Qqe, zypper packages)
 #   FAKE_GEM_FAIL              space-separated gems that fail to install
 #   FAKE_CURL_FAIL             non-empty: every download fails
 #   FAKE_HOMEBREW_INSTALL_FAIL non-empty: the Homebrew installer script fails
@@ -106,6 +108,7 @@ case "$tool" in
                 exit "$status"
                 ;;
             repoquery)
+                [[ -n "${FAKE_QUERY_FAIL:-}" ]] && exit 1
                 [[ -f "$MACHINE/dnf.txt" ]] && sort "$MACHINE/dnf.txt"
                 exit 0
                 ;;
@@ -118,6 +121,7 @@ case "$tool" in
     pacman)
         case "${1:-}" in
             -Qqe)
+                [[ -n "${FAKE_QUERY_FAIL:-}" ]] && exit 1
                 [[ -f "$MACHINE/pacman.txt" ]] && sort "$MACHINE/pacman.txt"
                 exit 0
                 ;;
@@ -162,6 +166,7 @@ case "$tool" in
                     ;;
             esac
         done
+        [[ "$mode" == "packages" && -n "${FAKE_QUERY_FAIL:-}" ]] && exit 106
         if [[ "$mode" == "packages" ]]; then
             printf 'S  | Repository | Name | Version | Arch\n---+------------+------+---------+-----\n'
             if [[ -f "$MACHINE/zypper.txt" ]]; then
@@ -181,6 +186,7 @@ case "$tool" in
         ;;
 
     apt-mark)
+        [[ -n "${FAKE_QUERY_FAIL:-}" ]] && exit 100
         [[ -f "$MACHINE/apt.txt" ]] && sort "$MACHINE/apt.txt"
         exit 0
         ;;

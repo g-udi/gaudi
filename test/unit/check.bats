@@ -205,6 +205,25 @@ file() {
     assert_output_contains "3 error(s)"
 }
 
+@test "check: a dotfiles.list entry for the home directory itself is an error" {
+    printf '.\n./\n./.\n./.zshrc\n.config/\n' | file "dotfiles.list"
+    run check
+    assert_failure 1
+    assert_output_contains "dotfiles.list: line 1: '.' must be a path inside the home directory"
+    assert_output_contains "line 2: './'"
+    assert_output_contains "line 3: './.'"
+    assert_output_contains "3 error(s)"
+}
+
+@test "check: a dotfiles.list entry that leaves the home directory through a symlink is an error" {
+    mkdir -p "$SANDBOX/elsewhere"
+    ln -s "$SANDBOX/elsewhere" "$HOME/link"
+    printf 'link/file.txt\n' | file "dotfiles.list"
+    run check
+    assert_failure 1
+    assert_output_contains "line 1: 'link/file.txt' must be a path inside the home directory"
+}
+
 @test "check --online: missing and disabled packages are errors, deprecated ones warnings" {
     printf 'brew "jq"\nbrew "gone"\nbrew "old"\ncask "dead"\nnpm "eslint"\n' | file "Brewfile"
     export FAKE_BREW_MISSING="gone" FAKE_BREW_DEPRECATED="old" FAKE_BREW_DISABLED="dead"

@@ -37,7 +37,13 @@ jobs:
         run: brew install bats-core shellcheck
       - name: Install bats and ShellCheck (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y bats shellcheck
+        run: |
+          # The runners' package mirrors fail to resolve now and then: retry before giving up
+          for attempt in 1 2 3 4 5; do
+            sudo apt-get update && sudo apt-get install -y bats shellcheck && break
+            if [ "$attempt" = 5 ]; then exit 1; fi
+            echo "apt failed (attempt $attempt), retrying in 20 seconds"; sleep 20
+          done
       # --every-bash also runs the suite under /bin/bash, which is 3.2 on macOS
       - name: Run the suite
         run: test/run --every-bash

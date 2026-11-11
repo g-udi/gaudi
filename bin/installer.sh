@@ -19,7 +19,9 @@ gaudi::run_install_command() {
     "${command_parts[@]}" "$package_name"
 }
 
-installSoftwareList() {
+# Install the items of a list ("name" or "name::description"), one at a time.
+#   gaudi::install_list_items <install command> <ask about each: true|false> <item>...
+gaudi::install_list_items() {
     local install_command="$1"
     local is_with_prompt="$2"
     local item=""
@@ -69,13 +71,24 @@ gaudi::bundle_install() {
     brew "${bundle_args[@]}"
 }
 
-gem_install_or_update() {
-    local subcommand="${1:-install}"
-    shift || true
-
-    if [[ "$subcommand" == "install" && "$#" -gt 0 ]] && gem list --installed --exact "$1" >/dev/null 2>&1; then
+# Install a gem into the user's gem directory, or update it when it is there.
+#   gaudi::gem_install <gem> [gem options...]
+gaudi::gem_install() {
+    if [[ "$#" -gt 0 ]] && gem list --installed --exact "$1" >/dev/null 2>&1; then
         gem update "$@" --user-install
     else
-        gem "$subcommand" "$@" --user-install
+        gem install "$@" --user-install
     fi
+}
+
+# --- Names from before the gaudi:: prefix ---------------------------------------
+
+installSoftwareList() {
+    gaudi::install_list_items "$@"
+}
+
+# The old form took the gem subcommand first; it was always "install"
+gem_install_or_update() {
+    [[ "${1:-}" != "install" ]] || shift
+    gaudi::gem_install "$@"
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# lib/install-configurations.sh (and the per-OS configure.sh wrappers)
+# lib/install-configurations.sh: the same step on every operating system
 
 load ../helper
 
@@ -214,33 +214,25 @@ EOF
     assert_file_contains "$MACHINE/defaults.txt" "write com.apple.finder ShowPathbar -bool true"
 }
 
-@test "lib/osx/configure.sh and lib/debian/configure.sh run the same configuration step" {
-    config "configs/a.configs.sh" "shared"
-    export GAUDI_ASSUME_YES="true"
-
-    run step lib/osx/configure.sh
-    assert_success
-    run step lib/debian/configure.sh
-    assert_success
-    assert_equal "$(applied)" "shared
-shared"
+@test "no operating system has a configure.sh of its own: setup sources the one step" {
+    [[ -z "$(find "$GAUDI_ROOT/lib" -name configure.sh)" ]]
+    grep -q 'source_if_exists "$SOURCE_LOCATION/lib/install-configurations.sh"' "$GAUDI_ROOT/setup.sh"
 }
 
-@test "Fedora applies fedora and shared configs through lib/fedora/configure.sh" {
+@test "Fedora applies fedora and shared configs" {
     gaudi_sandbox fedora
     export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates" GAUDI_ASSUME_YES="true"
     config "configs/a.configs.osx.sh" "mac-only"
     config "configs/b.configs.fedora.sh" "fedora"
     config "configs/c.configs.sh" "shared"
 
-    run step lib/fedora/configure.sh
+    run step lib/install-configurations.sh
     assert_success
     assert_equal "$(applied)" "fedora
 shared"
 }
 
 @test "Arch and openSUSE apply their own and shared configs" {
-    # Runs lib/arch/configure.sh and lib/opensuse/configure.sh
     for os in arch opensuse; do
         gaudi_sandbox "$os"
         export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates-$os" GAUDI_ASSUME_YES="true"
@@ -249,9 +241,24 @@ shared"
         config "configs/b.configs.$os.sh" "$os"
         config "configs/c.configs.sh" "shared"
 
-        run step "lib/$os/configure.sh"
+        run step lib/install-configurations.sh
         assert_success
         assert_equal "$(applied)" "$os
 shared"
     done
+}
+
+@test "a dry run does not run anything a config has outside _command" {
+    printf 'touch "$MACHINE/config-code-ran"\n_info="Careful config"\n_command()\n{\n    touch "$MACHINE/command-ran"\n}\n' \
+        | write_file "$GAUDI_TEMPLATES_LOCATION/configs/a.configs.sh"
+    printf '_info="No command here"\n' | write_file "$GAUDI_TEMPLATES_LOCATION/configs/b.configs.sh"
+    export GAUDI_ASSUME_YES="true" GAUDI_DRY_RUN="true"
+
+    run step lib/install-configurations.sh
+    assert_success
+    assert_output_contains "Careful config"
+    assert_output_contains "DRY RUN: config $GAUDI_TEMPLATES_LOCATION/configs/a.configs.sh"
+    assert_output_contains "Skipping $GAUDI_TEMPLATES_LOCATION/configs/b.configs.sh: _command function is missing"
+    refute_file_exists "$MACHINE/config-code-ran"
+    refute_file_exists "$MACHINE/command-ran"
 }

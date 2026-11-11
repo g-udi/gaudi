@@ -4,11 +4,27 @@
 # Restore the files under <templates>/dotfiles into the home directory, keeping
 # their layout. A file that is already identical is left alone; a different
 # one is moved aside (<file>.gaudi-backup) before the new one is copied.
+# A symlink to a file is restored as a copy of that file.
 
 GAUDI_TEMPLATES_LOCATION="${GAUDI_TEMPLATES_LOCATION:-${GAUDI:-$HOME/.gaudi}/templates}"
 gaudi_dotfiles_dir="$GAUDI_TEMPLATES_LOCATION/dotfiles"
 
 [[ -d "$gaudi_dotfiles_dir" ]] || return 0
+
+# Every file to restore. Symlinks that lead to a file count (cp follows them);
+# one that leads to a directory or nowhere is reported and left out.
+gaudi::dotfiles_to_restore() {
+    local found=""
+
+    while IFS= read -r found; do
+        [[ -n "$found" ]] || continue
+        if [[ -f "$found" ]]; then
+            printf "%s\n" "$found"
+        else
+            gaudi::warn "Skipping $found: a symlink is only restored when it points to a file"
+        fi
+    done < <(find "$gaudi_dotfiles_dir" \( -type f -o -type l \) -print | sort)
+}
 
 gaudi::dotfile_differs() {
     [[ -f "$2" ]] || return 0
@@ -55,7 +71,7 @@ while IFS= read -r gaudi_dotfile; do
             printf "  %s (new)\n" "$gaudi_dotfile_target"
         fi
     fi
-done < <(find "$gaudi_dotfiles_dir" -type f -print | sort)
+done < <(gaudi::dotfiles_to_restore)
 
 if [[ "$gaudi_dotfiles_changed" -eq 0 ]]; then
     gaudi::success "Dotfiles are already in place"
@@ -71,4 +87,4 @@ while IFS= read -r gaudi_dotfile; do
     gaudi::dotfile_differs "$gaudi_dotfile" "$gaudi_dotfile_target" || continue
     gaudi::restore_dotfile "$gaudi_dotfile" "$gaudi_dotfile_target" \
         || gaudi::record_failure "dotfile $gaudi_dotfile_target"
-done < <(find "$gaudi_dotfiles_dir" -type f -print | sort)
+done < <(gaudi::dotfiles_to_restore 2>/dev/null)

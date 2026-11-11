@@ -18,15 +18,25 @@ gaudi::run_configuration() {
     unset _info
     unset -f _command 2>/dev/null || true
 
-    gaudi::source_guarded "$config_file"
-    if [[ -n "$gaudi_guarded_failure" ]]; then
-        gaudi::record_failure "config $config_file: $gaudi_guarded_failure"
-        return 0
-    fi
+    # Sourcing a config runs whatever it has outside _command, so a dry run
+    # reads the prompt text and looks for _command in the file instead
+    if [[ "${GAUDI_DRY_RUN:-false}" == "true" ]]; then
+        if ! gaudi::config_defines_command "$config_file"; then
+            gaudi::warn "Skipping $config_file: _command function is missing"
+            return 0
+        fi
+        _info="$(gaudi::config_info "$config_file")"
+    else
+        gaudi::source_guarded "$config_file"
+        if [[ -n "$gaudi_guarded_failure" ]]; then
+            gaudi::record_failure "config $config_file: $gaudi_guarded_failure"
+            return 0
+        fi
 
-    if ! declare -F _command >/dev/null 2>&1; then
-        gaudi::warn "Skipping $config_file: _command function is missing"
-        return 0
+        if ! declare -F _command >/dev/null 2>&1; then
+            gaudi::warn "Skipping $config_file: _command function is missing"
+            return 0
+        fi
     fi
 
     _info="${_info:-$(basename "$config_file")}"

@@ -24,7 +24,7 @@ setup() {
 }
 
 @test "run_install_command can run a Gaudi function as the installer" {
-    run call gaudi::run_install_command "gem_install_or_update install" tmuxinator
+    run call gaudi::run_install_command "gaudi::gem_install" tmuxinator
     assert_success
     assert_called "gem install tmuxinator --user-install"
 }
@@ -54,10 +54,10 @@ setup() {
     assert_output_equals 'DRY RUN: sudo apt-get install -y two\ words'
 }
 
-# --- installSoftwareList --------------------------------------------------------------
+# --- gaudi::install_list_items --------------------------------------------------------------
 
-@test "installSoftwareList installs every item and shows descriptions" {
-    run call installSoftwareList "sudo apt-get install -y" "false" "tree::Directory listing" "htop"
+@test "gaudi::install_list_items installs every item and shows descriptions" {
+    run call gaudi::install_list_items "sudo apt-get install -y" "false" "tree::Directory listing" "htop"
     assert_success
     assert_output_contains "Installing tree"
     assert_output_contains "Description: Directory listing"
@@ -66,32 +66,32 @@ setup() {
     assert_file_contains "$MACHINE/apt.txt" "htop"
 }
 
-@test "installSoftwareList prints no description line for an item without one" {
-    run call installSoftwareList "sudo apt-get install -y" "false" "htop"
+@test "gaudi::install_list_items prints no description line for an item without one" {
+    run call gaudi::install_list_items "sudo apt-get install -y" "false" "htop"
     refute_output_contains "Description:"
 }
 
-@test "installSoftwareList keeps everything after the first :: as the description" {
-    run call installSoftwareList "sudo apt-get install -y" "false" "coreutils::with_default_names::GNU utilities"
+@test "gaudi::install_list_items keeps everything after the first :: as the description" {
+    run call gaudi::install_list_items "sudo apt-get install -y" "false" "coreutils::with_default_names::GNU utilities"
     assert_output_contains "Description: with_default_names::GNU utilities"
     assert_file_contains "$MACHINE/apt.txt" "coreutils"
 }
 
-@test "installSoftwareList skips empty items" {
-    run call installSoftwareList "sudo apt-get install -y" "false" "" "htop" ""
+@test "gaudi::install_list_items skips empty items" {
+    run call gaudi::install_list_items "sudo apt-get install -y" "false" "" "htop" ""
     assert_success
     assert_equal "$(calls | grep -c "^apt-get install")" "1"
 }
 
-@test "installSoftwareList accepts an empty list" {
-    run call installSoftwareList "sudo apt-get install -y" "false"
+@test "gaudi::install_list_items accepts an empty list" {
+    run call gaudi::install_list_items "sudo apt-get install -y" "false"
     assert_success
     refute_called "apt-get"
 }
 
-@test "installSoftwareList records a failing item and installs the rest" {
+@test "gaudi::install_list_items records a failing item and installs the rest" {
     export FAKE_APT_FAIL="broken"
-    run call eval 'installSoftwareList "sudo apt-get install -y" "false" "first" "broken" "third"; gaudi::report_failures'
+    run call eval 'gaudi::install_list_items "sudo apt-get install -y" "false" "first" "broken" "third"; gaudi::report_failures'
     assert_failure 1
     assert_file_contains "$MACHINE/apt.txt" "first"
     assert_file_contains "$MACHINE/apt.txt" "third"
@@ -100,9 +100,9 @@ setup() {
     assert_output_contains "broken (sudo apt-get install -y)"
 }
 
-@test "installSoftwareList in prompt mode installs only what is confirmed" {
+@test "gaudi::install_list_items in prompt mode installs only what is confirmed" {
     interactive
-    run call installSoftwareList "sudo apt-get install -y" "true" "first" "second" "third" <<< "yny"
+    run call gaudi::install_list_items "sudo apt-get install -y" "true" "first" "second" "third" <<< "yny"
     assert_success
     assert_output_contains "Install first? [y/N]"
     assert_file_contains "$MACHINE/apt.txt" "first"
@@ -110,8 +110,8 @@ setup() {
     assert_file_contains "$MACHINE/apt.txt" "third"
 }
 
-@test "installSoftwareList in prompt mode installs nothing without a terminal" {
-    run call installSoftwareList "sudo apt-get install -y" "true" "first" "second"
+@test "gaudi::install_list_items in prompt mode installs nothing without a terminal" {
+    run call gaudi::install_list_items "sudo apt-get install -y" "true" "first" "second"
     assert_success
     refute_called "apt-get"
 }
@@ -161,39 +161,50 @@ setup() {
     refute_called "brew"
 }
 
-# --- gem_install_or_update ---------------------------------------------------------------
+# --- gaudi::gem_install -------------------------------------------------------------------
 
-@test "gem_install_or_update installs a gem that is not there yet" {
-    run call gem_install_or_update install tmuxinator
+@test "gem_install installs a gem that is not there yet" {
+    run call gaudi::gem_install tmuxinator
     assert_success
     assert_called "gem install tmuxinator --user-install"
     refute_called "gem update"
 }
 
-@test "gem_install_or_update updates a gem that is already installed" {
+@test "gem_install updates a gem that is already installed" {
     printf 'tmuxinator\n' > "$MACHINE/gem.txt"
-    run call gem_install_or_update install tmuxinator
+    run call gaudi::gem_install tmuxinator
     assert_success
     assert_called "gem update tmuxinator --user-install"
     refute_called "gem install"
 }
 
-@test "gem_install_or_update matches the gem name exactly" {
+@test "gem_install matches the gem name exactly" {
     printf 'rake\n' > "$MACHINE/gem.txt"
-    run call gem_install_or_update install rak
+    run call gaudi::gem_install rak
     assert_success
     assert_called "gem list --installed --exact rak"
     assert_called "gem install rak --user-install"
 }
 
-@test "gem_install_or_update passes other subcommands through" {
-    run call gem_install_or_update uninstall tmuxinator
+@test "gem_install_or_update, the older name, still installs (with or without the old first argument)" {
+    run call gem_install_or_update install tmuxinator
     assert_success
-    assert_called "gem uninstall tmuxinator --user-install"
+    assert_called "gem install tmuxinator --user-install"
+    run call gem_install_or_update rake
+    assert_success
+    assert_called "gem install rake --user-install"
 }
 
-@test "gem_install_or_update returns gem's failure" {
+@test "installSoftwareList, the older name, still installs a list" {
+    gaudi_sandbox debian
+    run call installSoftwareList "sudo apt-get install -y" false "tree::Directory listing" htop
+    assert_success
+    assert_called "apt-get install -y tree"
+    assert_called "apt-get install -y htop"
+}
+
+@test "gem_install returns gem's failure" {
     export FAKE_GEM_FAIL="broken"
-    run call gem_install_or_update install broken
+    run call gaudi::gem_install broken
     assert_failure
 }

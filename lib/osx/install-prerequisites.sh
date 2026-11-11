@@ -5,15 +5,7 @@ gaudi::log "Preparing macOS prerequisites"
 
 if ! gaudi::command_exists brew; then
     gaudi::log "Installing Homebrew (this also installs the Xcode Command Line Tools)"
-    if [[ "${GAUDI_ASSUME_YES:-false}" == "true" ]]; then
-        (
-            export NONINTERACTIVE=1
-            gaudi::run_remote_script /bin/bash "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
-        ) || gaudi::record_failure "Homebrew installation"
-    else
-        gaudi::run_remote_script /bin/bash "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh" \
-            || gaudi::record_failure "Homebrew installation"
-    fi
+    gaudi::install_homebrew || gaudi::record_failure "Homebrew installation"
 fi
 
 # Load brew into this run and into the shell profile, so new shells find it

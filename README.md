@@ -108,7 +108,7 @@ Every major stage can be skipped with a setup flag, so Gaudi can be used interac
 | How it is run | What happens at each prompt |
 | --- | --- |
 | In a terminal | You are asked: each Brewfile (all of it, or package by package), each list, each configuration script |
-| With `--yes` | Everything is accepted |
+| With `--yes` | Everything is accepted, including the default templates repository and Homebrew's own "press RETURN" prompt |
 | Without a terminal and without `--yes` | The safe default is taken: templates are cloned or updated, nothing optional is installed |
 
 Generating an SSH key always needs a terminal, because it asks for an email and a passphrase; without one that step is skipped.
@@ -124,7 +124,7 @@ Setup links a `gaudi` command into `${GAUDI_BIN_DIR:-$HOME/.local/bin}` and adds
 | Command | What it does |
 | --- | --- |
 | `gaudi setup [flags]` | Run the setup again |
-| `gaudi backup [output-dir]` | Capture the installed software (default: `./backup`) |
+| `gaudi backup [output-dir]` | Capture the installed software (default: `./backup`); `--help` prints the usage |
 | `gaudi check [templates-dir] [--online]` | Check a templates directory for things that will not work; changes nothing |
 | `gaudi doctor` | Show the install location, OS, shell, templates and whether Git and Homebrew are available; changes nothing |
 | `gaudi version` | Print the installed version |
@@ -153,6 +153,8 @@ GAUDI_DRY_RUN=true gaudi setup --yes --skip-prereqs --skip-ssh --skip-templates 
 ```
 
 A dry run covers Brewfiles, lists, hooks, configuration scripts and dotfiles. The other stages have no dry-run mode, which is why they are skipped here.
+
+A dry run executes nothing from the templates. Hooks are only named. A configuration script is not sourced: its `_info` line and the presence of `_command` are read from the text of the file. A list file is not sourced either: its array is read where it is written out as `<name>=( ... )`, and a list that builds its array with code is named and left unread.
 
 ## Backup and Restore
 
@@ -206,14 +208,14 @@ Every setup flag has a variable, and a few more settings only exist as variables
 | `GAUDI_DEFAULT_TEMPLATES_URL` | `https://github.com/g-udi/gaudi-templates.git` | Templates repository offered at the prompt |
 | `GAUDI_ASSUME_YES` | `false` | Same as `--yes` |
 | `GAUDI_SKIP_PREREQS`, `GAUDI_SKIP_SSH`, `GAUDI_SKIP_TEMPLATES`, `GAUDI_SKIP_SHELL_HELPERS`, `GAUDI_SKIP_SOFTWARE`, `GAUDI_SKIP_CONFIGS`, `GAUDI_SKIP_DOTFILES`, `GAUDI_SKIP_CLEANUP` | `false` | Same as the matching `--skip-*` flag |
-| `GAUDI_DRY_RUN` | `false` | Print install commands, hooks, configs and dotfiles instead of running them |
+| `GAUDI_DRY_RUN` | `false` | Print install commands, hooks, configs and dotfiles instead of running them (no code from the templates runs) |
 | `GAUDI_BUNDLE_NO_UPGRADE` | `false` | Install missing Brewfile entries without upgrading existing ones |
 | `GAUDI_TARGET_SHELL` | from `$SHELL` | Shell whose profile gets the `PATH` and Homebrew lines |
 | `GAUDI_SETUP_PROFILE` | per shell | Profile file to write to instead |
 | `GAUDI_BIN_DIR` | `~/.local/bin` | Where the `gaudi` command is linked |
 | `GAUDI_SSH_EMAIL` | asked | Email for a newly generated SSH key |
 | `GAUDI_BACKUP_MANAGERS` | `bundle gem dotfiles` (plus the system package manager on Linux: `apt`, `dnf`, `pacman` or `zypper`) | What `gaudi backup` captures |
-| `GAUDI_HELPER_REPO_URL` | `https://github.com/g-udi/gaudi-shell.git` | Repository the gaudi-shell helper is cloned from |
+| `GAUDI_GSHELL_REPO_URL` | `https://github.com/g-udi/gaudi-shell.git` | Repository [gaudi-shell](https://github.com/g-udi/gaudi-shell) is cloned from. `GAUDI_HELPER_REPO_URL`, its earlier name, still works |
 | `GAUDI_BREW_BIN_DIRS` | the standard Homebrew locations | Colon-separated directories searched for a Homebrew that is not on `PATH` yet |
 
 ## Using Gaudi next to gaudi-shell
@@ -278,7 +280,7 @@ npm "eslint"
 uv "pylint"
 ```
 
-The two `@Name` / `@Description` comment lines are optional and only label the prompt. Split software into several Brewfiles (for example `core.Brewfile`, `apps.Brewfile`, `npm.Brewfile`) to accept or skip each group on its own.
+Entries may use single or double quotes, and may sit inside a Ruby block (`if OS.mac?` ... `end`), as in any Brewfile. The two `@Name` / `@Description` comment lines are optional and only label the prompt. Split software into several Brewfiles (for example `core.Brewfile`, `apps.Brewfile`, `npm.Brewfile`) to accept or skip each group on its own.
 
 Set `GAUDI_BUNDLE_NO_UPGRADE=true` to install missing packages without upgrading the ones already there, and `GAUDI_DRY_RUN=true` to print the install commands, hooks and configuration scripts that would run without running any of them.
 
@@ -295,6 +297,8 @@ aptList=(
   "pkg-config::Manage compile and link flags for libraries"
 )
 ```
+
+A list file is run in a subshell and only the items of its array are taken from it, so the array can be assigned plainly or with `declare -a`, and nothing else the file sets reaches the rest of the setup. An item must fit on one line.
 
 Supported list targets:
 
@@ -317,9 +321,11 @@ Hooks are shell scripts in the templates that Gaudi sources around the software 
 | `pre.bundle-<name>.<topic>.hooks.sh` / `post.bundle-<name>.<topic>.hooks.sh` | Same, when one Brewfile needs several hooks |
 | `pre.apt.hooks.sh`, `pre.dnf.hooks.sh`, `post.pacman.hooks.sh`, `post.gem.hooks.sh`, ... | Around the apt, dnf, pacman, zypper and gem lists |
 
-A file named plain `Brewfile` goes by the name `default`, so its hooks are `pre.bundle-default.hooks.sh` and `post.bundle-default.hooks.sh`.
+A file named plain `Brewfile` goes by the name `default`, so its hooks are `pre.bundle-default.hooks.sh` and `post.bundle-default.hooks.sh`. When one Brewfile name starts with another (`dev.Brewfile` and `dev.tools.Brewfile`), a hook belongs to the longest name it matches: `pre.bundle-dev.tools.hooks.sh` runs for `dev.tools` only.
 
-Hooks run inside the setup, so they can use its helpers: `command_exists <tool>`, `gaudi::confirm "Question?" "n"` (which follows `--yes` and the no-terminal defaults), and `gaudi::record_failure "what failed"` to report a problem in the final summary. What a hook exports (variables, `PATH`) reaches the steps after it.
+Hooks run inside the setup, so they can use its helpers: `gaudi::command_exists <tool>` (also available as `command_exists`), `gaudi::confirm "Question?" "n"` (which follows `--yes` and the no-terminal defaults), and `gaudi::record_failure "what failed"` to report a problem in the final summary. The colours `$RED`, `$GREEN`, `$YELLOW`, `$BLUE`, `$MAGENTA` and `$NC` (reset) are set for `printf "%b"`, and empty when the output is not a colour terminal. What a hook exports (variables, `PATH`) reaches the steps after it.
+
+Helpers from before the `gaudi::` prefix keep working under their old names: `command_exists`, `get_os`, `get_shell_type`, `read_answer`, `read_email`, `read_git_url`, `installSoftwareList` and `gem_install_or_update`.
 
 A hook, like a configuration script, is reported as failed when one of its commands fails and nothing in the script deals with it: the rule is the one `set -e` uses, so a command inside `if`, or followed by `|| ...`, does not count. The rest of the script still runs. Use `return` to stop a hook early. `exit` also only stops the hook, never the setup, and is reported as a failure.
 
@@ -358,6 +364,8 @@ Everything under `dotfiles/` at the top of the templates is restored by `gaudi s
 
 Every path has to name something inside the home directory. The home directory itself (`.`, `./`), absolute and `~` paths, anything with `..`, and paths that leave the home directory through a symlinked directory are refused by `gaudi backup`, by the restore in `gaudi setup`, and reported by `gaudi check`.
 
+A dotfile that is a symlink (as dotfile managers leave them) is backed up as the file it points to, so it can be restored on a machine where the link's target does not exist. A symlink to a directory is followed when that directory is inside the home directory, and skipped with a warning otherwise. Restore copies files; a symlink under `dotfiles/` is restored as a copy of the file it points to.
+
 Do not list secrets such as SSH keys or tokens when the templates repository is public.
 
 ### Checking templates
@@ -383,18 +391,18 @@ It exits 1 when it finds errors, so it can guard a templates repository in CI; t
 ```text
 bin/
   gaudi          CLI entrypoint
-  colors.sh      terminal color detection
-  commands.sh    command resolution wrappers
-  helpers.sh     OS/shell/profile/template helpers
+  colors.sh      the six colours Gaudi prints with
+  commands.sh    sudo and brew wrappers
+  helpers.sh     OS/shell/profile detection, prompts, guarded sourcing, hooks
+  templates.sh   what a templates directory holds: file names, Brewfile lines, list types (shared by setup, check, backup and doctor)
   installer.sh   Brewfile and software-list installation logic
 configs/
   configure-gaudi.sh
   configure-ssh.sh
 lib/
-  osx/           debian/, fedora/, arch/ and opensuse/ hold the same three files
+  osx/           debian/, fedora/, arch/ and opensuse/ hold the same two files
     cleanup.sh
-    configure.sh
-    install-pre-requisits.sh
+    install-prerequisites.sh
   install-configurations.sh
   install-dotfiles.sh
   install-shell-helpers.sh
@@ -432,7 +440,7 @@ The suite is written with [bats-core](https://github.com/bats-core/bats-core). T
 | `lint` | Bash syntax (also under bash 3.2), [ShellCheck](https://www.shellcheck.net/), and checks that every script, library function, setup flag and `GAUDI_*` variable is both tested and documented |
 | `unit` | Every function and every setup step on its own: prompts, OS and shell detection, Brewfile and list installation, hooks, configs, dotfiles, SSH, templates, prerequisites, the CLI, the installer, backup, the templates checker. Colours and prompts are also tested on a real pseudo-terminal, typing the answers key by key |
 | `e2e` | The real `install.sh`, `setup.sh` and `gaudi backup` on simulated machines: a fresh Mac, Debian, Fedora, Arch and openSUSE from the one-line installer, backup on one machine and restore on another, failures and reruns |
-| `real` | Nothing simulated: Debian, Fedora, openSUSE and Arch containers, running as root, where the real `apt`, `dnf`, `zypper` and `pacman` install packages, and packages and dotfiles are backed up, removed and restored. `test/real/macos.sh` does the same with the real Homebrew and only runs in CI or with `GAUDI_E2E_REAL_MACOS=1` |
+| `real` | Nothing simulated: Debian, Fedora, openSUSE and Arch containers where the real `apt`, `dnf`, `zypper` and `pacman` install packages, and packages and dotfiles are backed up, removed and restored, first as root and then as a regular user through `sudo`. Without Docker the run is skipped, except in CI, where that is a failure. `test/real/macos.sh` does the same with the real Homebrew and only runs in CI or with `GAUDI_E2E_REAL_MACOS=1` |
 
 Unit and end-to-end tests never touch the machine they run on. Each test gets a throwaway home directory and a `PATH` that holds only fake tools (`test/fakes`: brew, apt, sudo, curl, ssh-keygen, ...) and a whitelist of coreutils. The fake package managers record what they "install", which is how a restored machine is compared with the one that was backed up.
 
@@ -447,6 +455,8 @@ Unit and end-to-end tests never touch the machine they run on. Each test gets a 
 | `real-macos` | `test/real/macos.sh`: a real formula installed, backed up, removed and restored with Homebrew |
 | `tests passed` | Succeeds only when all of the above did |
 
+Actions are pinned to a commit. The Fedora, openSUSE Tumbleweed and Arch containers deliberately use the newest image, so a change in a distribution can fail `real-linux` without a change here; `GAUDI_E2E_IMAGE` runs it against another image.
+
 To block merging until the tests pass, require the `tests passed` check on `main` (repository Settings, Branches or Rulesets). It is one check, so the rule does not need changing when jobs are added.
 
 ### Rules the code follows
@@ -455,6 +465,7 @@ These are enforced by the suite; they are listed here because each one was a rea
 
 - **Bash 3.2 compatible.** A fresh Mac only has Bash 3.2: no associative arrays, no `mapfile`, and empty arrays are an error under `set -u`.
 - **Sourcing template files goes through `gaudi::source_guarded`.** On Bash 3.2, `source file || handle` still ends the run when a command in the file fails.
+- **What a templates directory holds is defined once, in `bin/templates.sh`.** Setup, `gaudi check`, `gaudi backup` and the test suite's fake Homebrew read the same file names, Brewfile line pattern and list types, so one cannot accept what another rejects.
 - **Loops that prompt read their list on their own file descriptor** (`while read -u 3 ...; done 3< <(...)`), otherwise the prompt reads the list instead of the keyboard.
 - **Installer scripts are downloaded with `gaudi::run_remote_script`**, never `bash -c "$(curl ...)"`, which runs an empty script successfully when the download fails.
 - **Nothing reads `GAUDI_SHELL` or `GAUDI_SHELL_PROFILE`.** Those belong to [gaudi-shell](https://github.com/g-udi/gaudi-shell) and are exported wherever it is loaded.

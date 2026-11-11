@@ -10,17 +10,6 @@ setup() {
 
 # --- bin/commands.sh -------------------------------------------------------------
 
-@test "resolved_command_path prints where a command lives" {
-    run call gaudi::resolved_command_path brew
-    assert_success
-    assert_output_equals "$FAKEBIN/brew"
-}
-
-@test "resolved_command_path fails for a missing command" {
-    run call gaudi::resolved_command_path definitely-not-installed
-    assert_failure
-}
-
 @test "run_resolved_command runs the command with its arguments" {
     run call gaudi::run_resolved_command mas install 937984704
     assert_success
@@ -49,36 +38,45 @@ setup() {
     assert_output_equals "Homebrew 0.0.0-fake"
 }
 
-@test "brew, mas and npm wrappers forward their arguments" {
+@test "the brew wrapper forwards its arguments" {
     call brew tap example/tap
-    call mas list
-    call npm install -g eslint
     assert_called "brew tap example/tap"
-    assert_called "mas list"
-    assert_called "npm install -g eslint"
 }
 
-@test "a wrapper for a tool that is not installed fails with 127" {
-    remove_tool mas
-    run -127 call mas list
+@test "the brew wrapper fails with 127 when Homebrew is not installed" {
+    remove_tool brew
+    run -127 call brew list
     assert_failure 127
+}
+
+@test "mas and npm are not wrapped: a hook can ask whether they are installed" {
+    remove_tool mas npm
+    run call eval 'type mas npm'
+    assert_failure
 }
 
 # --- bin/colors.sh ---------------------------------------------------------------
 
 @test "colors are empty when output is not a terminal" {
-    run call eval 'printf "[%s][%s][%s]" "$RED" "$BOLD_GREEN" "$NC"'
+    run call eval 'printf "[%s][%s][%s][%s][%s][%s]" "$NC" "$RED" "$GREEN" "$YELLOW" "$BLUE" "$MAGENTA"'
     assert_success
-    assert_output_equals "[][][]"
+    assert_output_equals "[][][][][][]"
 }
 
-@test "every colour variable is defined, so set -u never trips on one" {
-    names="$(grep -o 'export [A-Z_]*=' "$GAUDI_ROOT/bin/colors.sh" | sed 's/export //; s/=//' | sort -u)"
-    [[ -n "$names" ]]
+@test "every colour variable is defined and exported, so set -u never trips on one" {
+    names="$(sed -n 's/^export //p' "$GAUDI_ROOT/bin/colors.sh")"
+    assert_equal "$names" "NC RED GREEN YELLOW BLUE MAGENTA"
     for name in $names; do
-        COLOR_NAME="$name" run call eval 'declare -p "$COLOR_NAME" >/dev/null'
+        COLOR_NAME="$name" run call bash -c 'declare -p "$COLOR_NAME" >/dev/null'
         assert_success
     done
+}
+
+@test "on a colour terminal each colour is an escape sequence that printf %b understands" {
+    require_terminal
+    run on_terminal "" env TERM=xterm-256color bash "$GAUDI_ROOT/test/support/call" eval 'printf "%b|%b|%b|%b|%b|%b" "$RED" "$GREEN" "$YELLOW" "$BLUE" "$MAGENTA" "$NC" | cat -v'
+    assert_success
+    assert_output_contains "^[[0;31m|^[[0;32m|^[[0;33m|^[[0;34m|^[[0;35m|^[[0m"
 }
 
 @test "colors load without TERM and without tput" {

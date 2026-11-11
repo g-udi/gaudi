@@ -63,7 +63,7 @@ done
 
 export GAUDI_ASSUME_YES GAUDI_SKIP_SOFTWARE GAUDI_SKIP_CONFIGS GAUDI_SKIP_SHELL_HELPERS GAUDI_SKIP_SSH GAUDI_SKIP_PREREQS GAUDI_SKIP_TEMPLATES GAUDI_SKIP_DOTFILES GAUDI_SKIP_CLEANUP
 
-for config in "$SOURCE_LOCATION"/bin/{colors,helpers,commands,installer}.sh; do
+for config in "$SOURCE_LOCATION"/bin/{colors,helpers,templates,commands,installer}.sh; do
     # shellcheck source=/dev/null
     source "$config"
 done
@@ -81,8 +81,8 @@ cat <<'EOF'
 
 EOF
 
-get_os
-get_shell_type
+gaudi::detect_os
+gaudi::detect_shell
 
 gaudi::log "Install root: $SOURCE_LOCATION"
 gaudi::log "Detected OS: ${OS:-unknown}"
@@ -97,7 +97,7 @@ gaudi::supported_os || {
 gaudi::install_cli
 
 if [[ "$GAUDI_SKIP_PREREQS" != "true" ]]; then
-    gaudi::source_if_exists "$SOURCE_LOCATION/lib/${OS}/install-pre-requisits.sh"
+    gaudi::source_if_exists "$SOURCE_LOCATION/lib/${OS}/install-prerequisites.sh"
 fi
 
 if [[ "$GAUDI_SKIP_SSH" != "true" ]]; then
@@ -117,7 +117,7 @@ if [[ "$GAUDI_SKIP_SOFTWARE" != "true" ]]; then
 fi
 
 if [[ "$GAUDI_SKIP_CONFIGS" != "true" ]]; then
-    gaudi::source_if_exists "$SOURCE_LOCATION/lib/${OS}/configure.sh"
+    gaudi::source_if_exists "$SOURCE_LOCATION/lib/install-configurations.sh"
 fi
 
 if [[ "$GAUDI_SKIP_DOTFILES" != "true" ]]; then

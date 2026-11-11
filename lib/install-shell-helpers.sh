@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 
-GAUDI_HELPER_REPO_URL="${GAUDI_HELPER_REPO_URL:-https://github.com/g-udi/gaudi-shell.git}"
+# Where gaudi-shell is cloned from. GAUDI_HELPER_REPO_URL is the older name of
+# this setting and still works (gaudi-helper is a different project).
+GAUDI_GSHELL_REPO_URL="${GAUDI_GSHELL_REPO_URL:-${GAUDI_HELPER_REPO_URL:-https://github.com/g-udi/gaudi-shell.git}}"
 
+# %b: the colour variables hold escape sequences as text
+printf "\n%b\n\n" "${YELLOW:-}Shell helpers${NC:-}"
 cat <<EOF
-
-${YELLOW:-}Shell helpers${NC:-}
-
 Gaudi can optionally install shell helper frameworks:
 
 - gaudi-shell: aliases, plugins, completions and themes for Bash and Zsh.
@@ -38,7 +39,7 @@ gaudi::install_gaudi_shell() {
         return 0
     fi
 
-    if ! git clone --depth=1 "$GAUDI_HELPER_REPO_URL" "$target"; then
+    if ! git clone --depth=1 "$GAUDI_GSHELL_REPO_URL" "$target"; then
         gaudi::record_failure "gaudi-shell installation (clone)"
         return 0
     fi

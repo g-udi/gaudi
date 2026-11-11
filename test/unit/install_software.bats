@@ -21,7 +21,7 @@ use_debian() {
 # Load the functions of install-software.sh without running its main flow
 # (it returns early when the templates directory is missing), then run code.
 software() {
-    call eval 'get_os; templates="$GAUDI_TEMPLATES_LOCATION"; GAUDI_TEMPLATES_LOCATION="$NO_TEMPLATES"; source "$SOURCE_LOCATION/lib/install-software.sh" 2>/dev/null; GAUDI_TEMPLATES_LOCATION="$templates"; '"$1"
+    call eval 'gaudi::detect_os; templates="$GAUDI_TEMPLATES_LOCATION"; GAUDI_TEMPLATES_LOCATION="$NO_TEMPLATES"; source "$SOURCE_LOCATION/lib/install-software.sh" 2>/dev/null; GAUDI_TEMPLATES_LOCATION="$templates"; '"$1"
 }
 
 # A hook that records its name in the same log as the fake tools
@@ -76,13 +76,13 @@ $GAUDI_TEMPLATES_LOCATION/lists/core.Brewfile"
     assert_output_equals "my.apps"
 }
 
-@test "template_files_for_type finds list files in every supported spelling" {
+@test "list_files finds list files in every supported spelling" {
     for name in default.apt.list.sh default.apt-get.sh extra.apt.sh servers.apt-extra.list.sh; do
         printf '# @List: x\n' | write_file "$GAUDI_TEMPLATES_LOCATION/lists/$name"
     done
     printf '# @List: x\n' | write_file "$GAUDI_TEMPLATES_LOCATION/lists/default.gem.list.sh"
 
-    run software 'gaudi::template_files_for_type apt'
+    run software 'gaudi::list_files apt'
     assert_success
     assert_output_contains "default.apt.list.sh"
     assert_output_contains "default.apt-get.sh"
@@ -91,27 +91,23 @@ $GAUDI_TEMPLATES_LOCATION/lists/core.Brewfile"
     refute_output_contains "gem"
 }
 
-@test "template_files_for_type never treats a hook as a list" {
+@test "list_files never treats a hook as a list" {
     printf 'true\n' | write_file "$GAUDI_TEMPLATES_LOCATION/hooks/pre.apt-docker.hooks.sh"
     printf 'true\n' | write_file "$GAUDI_TEMPLATES_LOCATION/hooks/pre.apt.hooks.sh"
 
-    run software 'gaudi::template_files_for_type apt'
+    run software 'gaudi::list_files apt'
     assert_output_equals ""
 }
 
-@test "installer_available_for_type checks the package manager" {
-    run software 'gaudi::installer_available_for_type gem'
-    assert_success
-    run software 'gaudi::installer_available_for_type apt'
-    assert_failure
+@test "step: gem lists are skipped when gem is not installed" {
     remove_tool gem
-    run software 'gaudi::installer_available_for_type gem'
-    assert_failure
-    run software 'gaudi::installer_available_for_type anything-else'
-    assert_success
-}
+    printf '# @List: gemList\ngemList=( "tmuxinator" )\n' | write_file "$GAUDI_TEMPLATES_LOCATION/lists/default.gem.list.sh"
+    export GAUDI_ASSUME_YES="true"
 
-# --- one Brewfile --------------------------------------------------------------------
+    run step lib/install-software.sh
+    assert_success
+    assert_output_contains "Skipping gem lists: required package manager is not available"
+}
 
 @test "install_brewfile does nothing when declined" {
     printf 'brew "jq"\n' | brewfile "lists/core.Brewfile"
@@ -192,7 +188,7 @@ apt_list() {
 }
 
 install_apt_list() {
-    software 'gaudi::install_list_file "$GAUDI_TEMPLATES_LOCATION/lists/default.apt.list.sh" "sudo apt-get install -y" apt; gaudi::report_failures'
+    software 'gaudi::install_list_file "$GAUDI_TEMPLATES_LOCATION/lists/default.apt.list.sh" apt; gaudi::report_failures'
 }
 
 @test "install_list_file skips a file without @List" {
@@ -436,7 +432,7 @@ hook post-gem"
     assert_output_contains "DRY RUN: brew bundle install --file=$GAUDI_TEMPLATES_LOCATION/lists/core.Brewfile"
     assert_output_contains "DRY RUN: hook $GAUDI_TEMPLATES_LOCATION/hooks/pre.bundle.hooks.sh"
     assert_output_contains "DRY RUN: hook $GAUDI_TEMPLATES_LOCATION/hooks/post.bundle-core.hooks.sh"
-    assert_output_contains "DRY RUN: gem_install_or_update install tmuxinator"
+    assert_output_contains "DRY RUN: gaudi::gem_install tmuxinator"
     refute_called "brew bundle"
     refute_called "gem install"
     refute_called "hook"
@@ -564,15 +560,6 @@ dnf install -y htop"
     refute_called "dnf"
 }
 
-@test "installer_available_for_type knows dnf" {
-    run software 'gaudi::installer_available_for_type dnf'
-    assert_failure
-    gaudi_sandbox fedora
-    export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates" NO_TEMPLATES="$SANDBOX/no-templates"
-    run software 'gaudi::installer_available_for_type dnf'
-    assert_success
-}
-
 # --- Arch and openSUSE ---------------------------------------------------------------
 
 @test "step: pacman lists install on Arch only" {
@@ -603,17 +590,93 @@ zypper --non-interactive install htop"
     refute_called "arch-only"
 }
 
-@test "installer_available_for_type knows pacman and zypper" {
-    run software 'gaudi::installer_available_for_type pacman'
-    assert_failure
-    run software 'gaudi::installer_available_for_type zypper'
-    assert_failure
-    gaudi_sandbox arch
-    export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates" NO_TEMPLATES="$SANDBOX/no-templates"
-    run software 'gaudi::installer_available_for_type pacman'
+# --- lists and Brewfiles written in other valid ways -------------------------------------
+
+@test "step: a list that makes its array with declare -a installs like any other" {
+    use_debian
+    printf '# @List: aptList\ndeclare -a aptList=(\n  "tree"\n  "htop"\n)\n' | apt_list
+    export GAUDI_ASSUME_YES="true"
+
+    run step lib/install-software.sh
     assert_success
-    gaudi_sandbox opensuse
-    export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates" NO_TEMPLATES="$SANDBOX/no-templates"
-    run software 'gaudi::installer_available_for_type zypper'
+    refute_output_contains "array not defined"
+    assert_file_contains "$MACHINE/apt.txt" "tree"
+    assert_file_contains "$MACHINE/apt.txt" "htop"
+}
+
+@test "step: what a list file sets does not reach the steps after it" {
+    use_debian
+    printf '# @List: aptList\nGAUDI_SKIP_CLEANUP=changed-by-a-list\naptList=( "tree" )\n' | apt_list
+    export GAUDI_ASSUME_YES="true"
+
+    run software 'gaudi::install_list_file "$GAUDI_TEMPLATES_LOCATION/lists/default.apt.list.sh" apt; printf "[%s][%s]" "${GAUDI_SKIP_CLEANUP:-}" "${aptList[*]:-}"'
     assert_success
+    assert_output_contains "[][]"
+    assert_file_contains "$MACHINE/apt.txt" "tree"
+}
+
+@test "pick_brewfile_entries asks about single-quoted entries and keeps the lines of a Ruby block" {
+    write_file "$SANDBOX/source.Brewfile" <<'BREW'
+brew 'wget'
+if OS.mac?
+  cask 'kitty'
+else
+  brew "xclip"
+end
+BREW
+    interactive
+    export PICK_SOURCE="$SANDBOX/source.Brewfile" PICK_TARGET="$SANDBOX/picked.Brewfile"
+
+    # wget: y, kitty: n, xclip: y
+    run software 'gaudi::pick_brewfile_entries "$PICK_SOURCE" "$PICK_TARGET"' <<< "yny"
+    assert_success
+    assert_output_contains "wget (brew)"
+    assert_output_contains "Install kitty? [y/N]"
+    assert_equal "$(cat "$SANDBOX/picked.Brewfile")" "brew 'wget'
+if OS.mac?
+else
+  brew \"xclip\"
+end"
+}
+
+@test "install_brewfile: the hook of dev.tools is not also run as a topic hook of dev" {
+    printf 'brew "a"\n' | brewfile "lists/dev.Brewfile"
+    printf 'brew "b"\n' | brewfile "lists/dev.tools.Brewfile"
+    hook "hooks/pre.bundle-dev.hooks.sh" "dev"
+    hook "hooks/pre.bundle-dev.asdf.hooks.sh" "dev-topic"
+    hook "hooks/pre.bundle-dev.tools.hooks.sh" "dev.tools"
+    hook "hooks/post.bundle-dev.tools.extra.hooks.sh" "dev.tools-topic"
+    export GAUDI_ASSUME_YES="true"
+
+    run step lib/install-software.sh
+    assert_success
+    assert_equal "$(calls | grep -E '^(hook|brew bundle)')" "hook dev
+hook dev-topic
+brew bundle install --file=$GAUDI_TEMPLATES_LOCATION/lists/dev.Brewfile
+hook dev.tools
+brew bundle install --file=$GAUDI_TEMPLATES_LOCATION/lists/dev.tools.Brewfile
+hook dev.tools-topic"
+}
+
+@test "step: a dry run reads a list without running the code in it" {
+    use_debian
+    printf '# @List: aptList\ntouch "$MACHINE/list-code-ran"\naptList=(\n  "tree"\n)\n' | apt_list
+    export GAUDI_ASSUME_YES="true" GAUDI_DRY_RUN="true"
+
+    run step lib/install-software.sh
+    assert_success
+    assert_output_contains "DRY RUN: sudo apt-get install -y tree"
+    refute_file_exists "$MACHINE/list-code-ran"
+    refute_called "apt-get"
+}
+
+@test "step: a dry run says so when a list builds its array with code" {
+    use_debian
+    printf '# @List: aptList\nfor name in tree htop; do aptList+=("$name"); done\n' | apt_list
+    export GAUDI_ASSUME_YES="true" GAUDI_DRY_RUN="true"
+
+    run step lib/install-software.sh
+    assert_success
+    assert_output_contains "DRY RUN: list $GAUDI_TEMPLATES_LOCATION/lists/default.apt.list.sh is not read: its aptList array is built by code"
+    refute_called "apt-get"
 }

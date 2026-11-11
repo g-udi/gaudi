@@ -1,16 +1,16 @@
 #!/usr/bin/env bats
-# lib/osx/install-pre-requisits.sh and lib/debian/install-pre-requisits.sh
+# lib/osx/install-prerequisites.sh and lib/debian/install-prerequisites.sh
 
 load ../helper
 
 HOMEBREW_INSTALLER="https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
 
 osx_step() {
-    step lib/osx/install-pre-requisits.sh
+    step lib/osx/install-prerequisites.sh
 }
 
 debian_step() {
-    step lib/debian/install-pre-requisits.sh
+    step lib/debian/install-prerequisites.sh
 }
 
 # --- macOS -------------------------------------------------------------------------
@@ -218,7 +218,7 @@ debian_step() {
 # --- Fedora ------------------------------------------------------------------------------
 
 fedora_step() {
-    step lib/fedora/install-pre-requisits.sh
+    step lib/fedora/install-prerequisites.sh
 }
 
 @test "Fedora: the build prerequisites are installed with dnf" {
@@ -267,7 +267,7 @@ fedora_step() {
 
 @test "Arch: the package database is refreshed and the build prerequisites installed with pacman" {
     gaudi_sandbox arch
-    run step lib/arch/install-pre-requisits.sh
+    run step lib/arch/install-prerequisites.sh
     assert_success
     assert_called "sudo pacman -Sy --noconfirm --needed base-devel procps-ng curl file git"
     assert_file_contains "$MACHINE/pacman.txt" "base-devel"
@@ -276,14 +276,14 @@ fedora_step() {
 @test "Arch: a failing prerequisite install is recorded" {
     gaudi_sandbox arch
     export FAKE_PACMAN_FAIL="base-devel"
-    run step lib/arch/install-pre-requisits.sh
+    run step lib/arch/install-prerequisites.sh
     assert_failure 1
     assert_output_contains "Arch prerequisites (pacman)"
 }
 
 @test "openSUSE: the build prerequisites are installed with zypper, without prompting" {
     gaudi_sandbox opensuse
-    run step lib/opensuse/install-pre-requisits.sh
+    run step lib/opensuse/install-prerequisites.sh
     assert_success
     assert_called "sudo zypper --non-interactive install gcc gcc-c++ make procps curl file git findutils diffutils"
     assert_file_contains "$MACHINE/zypper.txt" "gcc-c++"
@@ -292,7 +292,7 @@ fedora_step() {
 @test "openSUSE: a failing prerequisite install is recorded" {
     gaudi_sandbox opensuse
     export FAKE_ZYPPER_FAIL="make"
-    run step lib/opensuse/install-pre-requisits.sh
+    run step lib/opensuse/install-prerequisites.sh
     assert_failure 1
     assert_output_contains "openSUSE prerequisites (zypper install)"
 }
@@ -305,7 +305,7 @@ fedora_step() {
     refute_called "curl -fsSL"
 
     export GAUDI_ASSUME_YES="true"
-    run call eval 'get_os; get_shell_type; gaudi::offer_linuxbrew'
+    run call eval 'gaudi::detect_os; gaudi::detect_shell; gaudi::offer_linuxbrew'
     assert_success
     assert_file_exists "$FAKE_BREW_PREFIX/bin/brew"
     assert_file_contains "$HOME/.zshrc" "brew shellenv"
@@ -318,7 +318,51 @@ fedora_step() {
 
     gaudi_sandbox opensuse
     add_tool brew
-    run call eval 'get_os; get_shell_type; gaudi::offer_linuxbrew'
+    run call eval 'gaudi::detect_os; gaudi::detect_shell; gaudi::offer_linuxbrew'
     assert_success
     refute_output_contains "Install Homebrew on Linux?"
+}
+
+# --- one Homebrew installer for every operating system ------------------------------------
+
+@test "install_homebrew runs the installer, and tells it not to wait for RETURN under --yes" {
+    gaudi_sandbox arch
+    run call gaudi::install_homebrew
+    assert_success
+    assert_called "curl -fsSL $HOMEBREW_INSTALLER"
+    assert_called "homebrew-installer NONINTERACTIVE="
+    refute_called "NONINTERACTIVE=1"
+
+    gaudi_sandbox arch
+    export GAUDI_ASSUME_YES="true"
+    run call eval 'gaudi::install_homebrew; printf "[%s]" "${NONINTERACTIVE:-unset}"'
+    assert_success
+    assert_called "homebrew-installer NONINTERACTIVE=1"
+    # Only the installer sees it
+    assert_output_contains "[unset]"
+}
+
+@test "install_homebrew fails when the installer cannot be downloaded or fails" {
+    gaudi_sandbox arch
+    export FAKE_CURL_FAIL=1
+    run call gaudi::install_homebrew
+    assert_failure
+    unset FAKE_CURL_FAIL
+    export FAKE_HOMEBREW_INSTALL_FAIL=1
+    run call gaudi::install_homebrew
+    assert_failure
+}
+
+@test "Linux: --yes installs Homebrew without waiting for RETURN, like macOS" {
+    gaudi_sandbox debian
+    export GAUDI_ASSUME_YES="true"
+    run call eval 'gaudi::detect_os; gaudi::detect_shell; gaudi::offer_linuxbrew'
+    assert_success
+    assert_called "homebrew-installer NONINTERACTIVE=1"
+}
+
+@test "the Homebrew installer is only run from gaudi::install_homebrew (and the standalone install.sh)" {
+    run grep -rl 'Homebrew/install/HEAD/install.sh' "$GAUDI_ROOT/bin" "$GAUDI_ROOT/lib" "$GAUDI_ROOT/configs" "$GAUDI_ROOT/setup.sh" "$GAUDI_ROOT/install.sh"
+    assert_output_equals "$GAUDI_ROOT/bin/helpers.sh
+$GAUDI_ROOT/install.sh"
 }

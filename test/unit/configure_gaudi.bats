@@ -122,7 +122,7 @@ publish() {
     cp "$SANDBOX/probe.sh" "$GAUDI_ROOT/../.gaudi-probe-$$.sh" 2>/dev/null || true
     rm -f "$GAUDI_ROOT/../.gaudi-probe-$$.sh"
 
-    run call eval 'get_os; get_shell_type; source "$SOURCE_LOCATION/configs/configure-gaudi.sh" </dev/null >/dev/null 2>&1; bash -c "printf %s \"\$GAUDI_TEMPLATES_LOCATION\""'
+    run call eval 'gaudi::detect_os; gaudi::detect_shell; source "$SOURCE_LOCATION/configs/configure-gaudi.sh" </dev/null >/dev/null 2>&1; bash -c "printf %s \"\$GAUDI_TEMPLATES_LOCATION\""'
     assert_success
     assert_output_equals "$GAUDI_TEMPLATES_LOCATION"
 }

@@ -15,6 +15,8 @@ SOURCE_LOCATION="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && 
 source "$SOURCE_LOCATION/bin/colors.sh"
 # shellcheck source=/dev/null
 source "$SOURCE_LOCATION/bin/helpers.sh"
+# shellcheck source=bin/templates.sh
+source "$SOURCE_LOCATION/bin/templates.sh"
 # shellcheck source=/dev/null
 source "$SOURCE_LOCATION/bin/commands.sh"
 
@@ -45,9 +47,6 @@ TEMPLATES="$(cd "$TEMPLATES" && pwd)"
 errors=0
 warnings=0
 checked=0
-KNOWN_OSES="osx debian fedora arch opensuse"
-LIST_TYPES="apt dnf pacman zypper gem"
-LEGACY_TYPES="tap brew cask mas npm pip go"
 SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/gaudi-check.XXXXXX")"
 trap 'rm -rf "$SCRATCH"' EXIT
 
@@ -69,28 +68,17 @@ parses() {
     bash -n "$1" 2>/dev/null
 }
 
-list_files_for() {
-    find "$TEMPLATES" -type f \
-        \( -iname "*.$1.list.sh" -o -iname "*.$1.sh" -o -iname "*.$1-*.list.sh" -o -iname "*.$1-*.sh" \) \
-        ! -iname "*.hooks.sh" -print | sort
-}
-
 # --- Brewfiles -----------------------------------------------------------------
+# What counts as a Brewfile, a package line, a list or a hook is defined in
+# bin/templates.sh, which setup reads too.
 
-entry_re='^[[:space:]]*(tap|brew|cask|mas|vscode|npm|go|cargo|uv|whalebrew|flatpak|krew)[[:space:]]+"([^"]+)"(.*)$'
-other_re='^[[:space:]]*(cask_args|#|$)'
 : > "$SCRATCH/brewfile-names"
 : > "$SCRATCH/entries"
 
 while IFS= read -r brewfile; do
     [[ -n "$brewfile" ]] || continue
     checked=$((checked + 1))
-    base="${brewfile##*/}"
-    if [[ "$base" == "Brewfile" ]]; then
-        printf "default\n" >> "$SCRATCH/brewfile-names"
-    else
-        printf "%s\n" "${base%.Brewfile}" >> "$SCRATCH/brewfile-names"
-    fi
+    printf "%s\n" "$(gaudi::brewfile_name "$brewfile")" >> "$SCRATCH/brewfile-names"
 
     if gaudi::command_exists brew && ! brew bundle list --all "--file=$brewfile" >/dev/null 2>&1; then
         problem "$brewfile" "Homebrew cannot read this Brewfile (try: brew bundle list --file=$brewfile)"
@@ -99,20 +87,16 @@ while IFS= read -r brewfile; do
     line_number=0
     while IFS= read -r line || [[ -n "$line" ]]; do
         line_number=$((line_number + 1))
-        if [[ "$line" =~ $entry_re ]]; then
-            # Copied out first: the next regex match replaces BASH_REMATCH
-            entry_type="${BASH_REMATCH[1]}"
-            entry_name="${BASH_REMATCH[2]}"
-            entry_rest="${BASH_REMATCH[3]}"
-            printf "%s %s\t%s\n" "$entry_type" "$entry_name" "$brewfile" >> "$SCRATCH/entries"
-            if [[ "$entry_type" == "mas" && ! "$entry_rest" =~ id:[[:space:]]*[0-9]+ ]]; then
-                problem "$brewfile" "line $line_number: mas \"$entry_name\" needs an id (mas \"Name\", id: 123)"
+        if gaudi::brewfile_entry "$line"; then
+            printf "%s %s\t%s\n" "$gaudi_entry_type" "$gaudi_entry_name" "$brewfile" >> "$SCRATCH/entries"
+            if [[ "$gaudi_entry_type" == "mas" && ! "$gaudi_entry_rest" =~ id:[[:space:]]*[0-9]+ ]]; then
+                problem "$brewfile" "line $line_number: mas \"$gaudi_entry_name\" needs an id (mas \"Name\", id: 123)"
             fi
-        elif [[ ! "$line" =~ $other_re ]]; then
+        elif ! gaudi::brewfile_other_line "$line"; then
             concern "$brewfile" "line $line_number is not a package entry: $line"
         fi
     done < "$brewfile"
-done < <(find "$TEMPLATES" -type f \( -name "Brewfile" -o -name "*.Brewfile" \) -print | sort)
+done < <(gaudi::brewfiles "$TEMPLATES")
 
 while IFS= read -r duplicate; do
     [[ -n "$duplicate" ]] || continue
@@ -122,29 +106,36 @@ done < <(cut -f 1 "$SCRATCH/entries" | sort | uniq -d)
 
 # --- lists ---------------------------------------------------------------------
 
-for list_type in $LIST_TYPES; do
+for list_type in $gaudi_list_types; do
     while IFS= read -r list_file; do
         [[ -n "$list_file" ]] || continue
         checked=$((checked + 1))
         list_name="$(gaudi::metadata_value "$list_file" "@List")"
         if ! parses "$list_file"; then
             problem "$list_file" "is not valid Bash"
+            continue
         elif [[ -z "$list_name" ]]; then
             problem "$list_file" "has no '# @List: <array name>' line, so it is skipped"
-        elif ! bash -c 'source "$1" >/dev/null 2>&1; declare -p "$2" >/dev/null 2>&1' _ "$list_file" "$list_name"; then
-            problem "$list_file" "does not define the array '$list_name' named by @List"
-        elif [[ "$(bash -c 'source "$1" >/dev/null 2>&1; eval "printf %s \${#$2[@]}"' _ "$list_file" "$list_name")" == "0" ]]; then
-            concern "$list_file" "the list is empty"
+            continue
         fi
-    done < <(list_files_for "$list_type")
+
+        # Read the way setup reads it, so both agree on what the list holds
+        list_output="$(gaudi::list_items "$list_file" "$list_name" 2>/dev/null)"
+        case "$list_output" in
+            ok) concern "$list_file" "the list is empty" ;;
+            ok*) ;;
+            failed*) concern "$list_file" "could not be read on this machine (${list_output#failed }): setup reports a list that fails as a failure" ;;
+            *) problem "$list_file" "does not define the array '$list_name' named by @List" ;;
+        esac
+    done < <(gaudi::list_files "$list_type" "$TEMPLATES")
 done
 
-for list_type in $LEGACY_TYPES; do
+for list_type in $gaudi_legacy_list_types; do
     while IFS= read -r list_file; do
         [[ -n "$list_file" ]] || continue
         checked=$((checked + 1))
         problem "$list_file" "'$list_type' lists are no longer installed: move the entries to a Brewfile"
-    done < <(list_files_for "$list_type")
+    done < <(gaudi::list_files "$list_type" "$TEMPLATES")
 done
 
 # --- hooks ---------------------------------------------------------------------
@@ -158,7 +149,7 @@ hook_is_known() {
     [[ "$phase" == "pre" || "$phase" == "post" ]] || return 1
     [[ "$base" == "$phase.bundle.hooks.sh" ]] && return 0
 
-    for list_type in $LIST_TYPES; do
+    for list_type in $gaudi_list_types; do
         [[ "$base" == "$phase.$list_type"*".hooks.sh" ]] && return 0
     done
 
@@ -182,11 +173,9 @@ while IFS= read -r hook; do
             problem "$hook" "never runs: the name is not pre|post.bundle[-<Brewfile>[.<topic>]].hooks.sh or pre|post.<apt|dnf|pacman|zypper|gem>.hooks.sh"
         fi
     fi
-done < <(find "$TEMPLATES" -type f -name "*.hooks.sh" -print | sort)
+done < <(gaudi::hook_files "*.hooks.sh" "$TEMPLATES")
 
 # --- configuration scripts -----------------------------------------------------
-
-command_re='^[[:space:]]*(function[[:space:]]+)?_command[[:space:]]*(\(\))?[[:space:]]*\{'
 
 while IFS= read -r config; do
     [[ -n "$config" ]] || continue
@@ -210,14 +199,14 @@ while IFS= read -r config; do
     esac
 
     checked=$((checked + 1))
-    if [[ -n "$config_os" && " $KNOWN_OSES " != *" $config_os "* ]]; then
-        problem "$config" "never runs: '$config_os' is not one of: $KNOWN_OSES"
+    if [[ -n "$config_os" && " $gaudi_known_oses " != *" $config_os "* ]]; then
+        problem "$config" "never runs: '$config_os' is not one of: $gaudi_known_oses"
     fi
     if ! parses "$config"; then
         problem "$config" "is not valid Bash"
         continue
     fi
-    grep -Eq "$command_re" "$config" || problem "$config" "does not define _command, so it is skipped"
+    gaudi::config_defines_command "$config" || problem "$config" "does not define _command, so it is skipped"
     grep -Eq '^[[:space:]]*_info=' "$config" || concern "$config" "has no _info: the file name is shown instead"
 done < <(find "$TEMPLATES" -type f -name "*.sh" ! -name "*.hooks.sh" ! -name "*.list.sh" -print | sort)
 
@@ -226,17 +215,12 @@ done < <(find "$TEMPLATES" -type f -name "*.sh" ! -name "*.hooks.sh" ! -name "*.
 while IFS= read -r dotfiles_list; do
     [[ -n "$dotfiles_list" ]] || continue
     checked=$((checked + 1))
-    line_number=0
-    while IFS= read -r entry || [[ -n "$entry" ]]; do
-        line_number=$((line_number + 1))
-        entry="${entry%%#*}"
-        entry="${entry#"${entry%%[![:space:]]*}"}"
-        [[ -n "$entry" ]] || continue
+    while IFS=$'\t' read -r line_number entry; do
         if ! gaudi::dotfile_path "$entry" >/dev/null; then
             problem "$dotfiles_list" "line $line_number: '$entry' must be a path inside the home directory, written relative to it"
         fi
-    done < "$dotfiles_list"
-done < <(find "$TEMPLATES" -type f -name "dotfiles.list" -print | sort)
+    done < <(gaudi::dotfiles_list_entries "$dotfiles_list")
+done < <(gaudi::dotfiles_lists "$TEMPLATES")
 
 # --- online: does Homebrew still have every package? ------------------------------
 

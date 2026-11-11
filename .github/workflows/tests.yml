@@ -13,6 +13,9 @@ on:
 permissions:
   contents: read
 
+# Actions are pinned to a commit, with the release it belongs to in a comment:
+# a tag such as v4 can be moved to different code, a commit cannot.
+
 # A newer push to the same branch or pull request replaces the run in progress
 concurrency:
   group: tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -28,7 +31,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Install bats and ShellCheck (macOS)
         if: runner.os == 'macOS'
         run: brew install bats-core shellcheck
@@ -44,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Install, back up, remove and restore real packages on Debian, Fedora, openSUSE and Arch
         run: test/run real
 
@@ -53,7 +56,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Install, back up, remove and restore a real formula
         run: GAUDI_E2E_REAL_MACOS=1 test/real/macos.sh
 

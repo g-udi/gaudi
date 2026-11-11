@@ -24,6 +24,9 @@ mkdir -p "$state"
 printf 'brew %s\n' "$*" >> "$MACHINE/calls.log"
 
 self_dir="$(cd "$(dirname "$0")" && pwd)"
+# What a package line of a Brewfile looks like is Gaudi's own definition
+# shellcheck source=bin/templates.sh
+source "${FAKES_DIR:?the fake brew needs FAKES_DIR}/../../bin/templates.sh"
 types="tap brew cask mas npm uv go cargo vscode"
 
 should_fail() {
@@ -69,7 +72,6 @@ bundle_install() {
     local name=""
     local rest=""
     local failed=0
-    local entry_re='^[[:space:]]*(tap|brew|cask|mas|npm|uv|go|cargo|vscode)[[:space:]]+"([^"]+)"(.*)$'
     local id_re='id:[[:space:]]*([0-9]+)'
 
     file="$(file_argument "$@")"
@@ -79,10 +81,10 @@ bundle_install() {
     fi
 
     while IFS= read -r line || [[ -n "$line" ]]; do
-        [[ "$line" =~ $entry_re ]] || continue
-        type="${BASH_REMATCH[1]}"
-        name="${BASH_REMATCH[2]}"
-        rest="${BASH_REMATCH[3]}"
+        gaudi::brewfile_entry "$line" || continue
+        type="$gaudi_entry_type"
+        name="$gaudi_entry_name"
+        rest="$gaudi_entry_rest"
 
         if should_fail "$name"; then
             printf 'Installing %s has failed!\n' "$name" >&2

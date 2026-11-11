@@ -386,3 +386,33 @@ publish() {
     assert_file_exists "$HOME/.gaudi/added-later.txt"
     assert_file_contains "$HOME/.gaudi/widgets/state.json" "data"
 }
+
+@test "--yes installs Homebrew without waiting for RETURN; without it Homebrew may ask" {
+    remove_tool brew
+    rm "$MACHINE/clt"
+    # shellcheck disable=SC2086
+    run install $SKIP_ALL
+    assert_success
+    assert_called "homebrew-installer NONINTERACTIVE=1"
+
+    gaudi_sandbox darwin
+    REMOTE="$(gaudi_remote)"
+    export GAUDI_REPO_URL="file://$REMOTE"
+    remove_tool brew
+    rm "$MACHINE/clt"
+    # shellcheck disable=SC2086
+    run install ${SKIP_ALL#--yes }
+    assert_success
+    assert_called "homebrew-installer NONINTERACTIVE="
+    refute_called "NONINTERACTIVE=1"
+
+    gaudi_sandbox darwin
+    REMOTE="$(gaudi_remote)"
+    export GAUDI_REPO_URL="file://$REMOTE" GAUDI_ASSUME_YES="true"
+    remove_tool brew
+    rm "$MACHINE/clt"
+    # shellcheck disable=SC2086
+    run install ${SKIP_ALL#--yes }
+    assert_success
+    assert_called "homebrew-installer NONINTERACTIVE=1"
+}

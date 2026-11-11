@@ -95,9 +95,10 @@ template_dotfile() {
     run backup
     assert_success
     assert_output_contains "Skipping 'link/file.txt'"
-    assert_output_contains "Copied 1 dotfile(s)"
-    # The link to the home directory is copied as a link, never followed
-    [[ -L "$SANDBOX/out/dotfiles/.config-link" ]]
+    # The link to the home directory is never followed
+    assert_output_contains "Skipping '.config-link': it is a symlink to a directory outside the home directory"
+    assert_output_contains "Copied 0 dotfile(s)"
+    refute_file_exists "$SANDBOX/out/dotfiles/.config-link"
     refute_file_exists "$SANDBOX/out/dotfiles/link"
 }
 
@@ -291,4 +292,53 @@ template_dotfile() {
     assert_output_contains "Restore these 1 dotfile(s)"
     refute_file_exists "$HOME/.zshrc.gaudi-backup"
     assert_file_contains "$HOME/.vimrc" "from templates"
+}
+
+# --- symlinked dotfiles ----------------------------------------------------------------
+
+@test "a symlinked dotfile is backed up as the file it points to, and restored on another machine" {
+    printf 'export EDITOR=vim\n' | write_file "$HOME/dotfiles-repo/zshrc"
+    ln -s "$HOME/dotfiles-repo/zshrc" "$HOME/.zshrc"
+    printf '.zshrc\n' > "$GAUDI_TEMPLATES_LOCATION/dotfiles.list"
+
+    run backup
+    assert_success
+    assert_output_contains "Copied 1 dotfile(s)"
+    [[ -f "$SANDBOX/out/dotfiles/.zshrc" && ! -L "$SANDBOX/out/dotfiles/.zshrc" ]]
+
+    cp -R "$SANDBOX/out/dotfiles" "$GAUDI_TEMPLATES_LOCATION/dotfiles"
+    use_machine second
+    export GAUDI_ASSUME_YES="true"
+    run restore
+    assert_success
+    assert_equal "$(cat "$HOME/.zshrc")" "export EDITOR=vim"
+}
+
+@test "a symlink to a directory inside the home directory is backed up as that directory" {
+    printf 'font_size 14\n' | write_file "$HOME/dotfiles-repo/kitty/kitty.conf"
+    mkdir -p "$HOME/.config"
+    ln -s "$HOME/dotfiles-repo/kitty" "$HOME/.config/kitty"
+    printf '.config/kitty\n' > "$GAUDI_TEMPLATES_LOCATION/dotfiles.list"
+
+    run backup
+    assert_success
+    [[ -d "$SANDBOX/out/dotfiles/.config/kitty" && ! -L "$SANDBOX/out/dotfiles/.config/kitty" ]]
+    assert_file_contains "$SANDBOX/out/dotfiles/.config/kitty/kitty.conf" "font_size 14"
+}
+
+@test "restore copies a symlink that points to a file, and reports one that does not" {
+    printf 'set number\n' | template_dotfile "shared/vimrc"
+    ln -s "shared/vimrc" "$GAUDI_TEMPLATES_LOCATION/dotfiles/.vimrc"
+    ln -s "shared" "$GAUDI_TEMPLATES_LOCATION/dotfiles/.linked-dir"
+    ln -s "nowhere" "$GAUDI_TEMPLATES_LOCATION/dotfiles/.dangling"
+    export GAUDI_ASSUME_YES="true"
+
+    run restore
+    assert_success
+    assert_equal "$(cat "$HOME/.vimrc")" "set number"
+    [[ ! -L "$HOME/.vimrc" ]]
+    assert_output_contains "Skipping $GAUDI_TEMPLATES_LOCATION/dotfiles/.linked-dir: a symlink is only restored when it points to a file"
+    assert_output_contains "Skipping $GAUDI_TEMPLATES_LOCATION/dotfiles/.dangling"
+    refute_file_exists "$HOME/.linked-dir"
+    refute_file_exists "$HOME/.dangling"
 }

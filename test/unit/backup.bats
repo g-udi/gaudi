@@ -354,3 +354,57 @@ zypperList=(
     assert_output_contains "No dotfiles.list in the templates"
     assert_output_contains "1 step(s) failed"
 }
+
+# --- options ------------------------------------------------------------------------
+
+@test "backup --help prints the usage and writes nothing" {
+    for flag in --help -h; do
+        run "$CLI" backup "$flag"
+        assert_success
+        assert_output_equals "Usage: gaudi backup [output-dir]"
+    done
+    assert_cwd_clean
+    refute_called "brew"
+}
+
+@test "backup refuses an option it does not know, with status 64" {
+    run "$CLI" backup --frobnicate
+    assert_failure 64
+    assert_output_contains "Unknown option: --frobnicate"
+    assert_output_contains "Usage: gaudi backup [output-dir]"
+    assert_cwd_clean
+}
+
+@test "backup -- takes a directory whose name starts with a dash" {
+    installed brew/brew.txt "jq"
+    run "$CLI" backup -- "-odd"
+    assert_success
+    assert_file_contains "$WORK/-odd/Brewfile" 'brew "jq"'
+}
+
+# --- gems, with the real Ruby --------------------------------------------------------
+
+@test "the gem backup's Ruby lists the gems in the user's gem directory, and only those" {
+    real_ruby="$(PATH="$_REAL_PATH" type -P ruby || true)"
+    [[ -n "$real_ruby" ]] || skip "ruby is not installed"
+    ln -sf "$real_ruby" "$FAKEBIN/ruby"
+    gem_dir="$(ruby -e 'print Gem.user_dir' 2>/dev/null)" || skip "this ruby does not run in the sandbox"
+    [[ "$gem_dir" == "$HOME"/* ]] || skip "this ruby keeps user gems outside the home directory"
+    for name in tmuxinator rake; do
+        write_file "$gem_dir/specifications/$name-1.0.0.gemspec" <<SPEC
+Gem::Specification.new do |s|
+  s.name = "$name"
+  s.version = "1.0.0"
+  s.summary = "fixture"
+  s.authors = ["Gaudi Test"]
+end
+SPEC
+    done
+    printf 'not a gemspec\n' > "$gem_dir/specifications/README"
+    export GAUDI_BACKUP_MANAGERS="gem"
+
+    run "$CLI" backup "$SANDBOX/out"
+    assert_success
+    assert_equal "$(grep '^  "' "$SANDBOX/out/default.gem.list.sh")" '  "rake"
+  "tmuxinator"'
+}

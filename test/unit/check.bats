@@ -301,3 +301,50 @@ file() {
     assert_output_contains "qlthing is disabled in Homebrew and can no longer be installed"
     refute_output_contains "deprecated"
 }
+
+# --- everything setup accepts, check accepts --------------------------------------------
+
+@test "check: single-quoted entries and Ruby blocks are package lines and known lines" {
+    file "Brewfile" <<'BREW'
+brew 'wget'
+if OS.mac?
+  cask 'kitty'
+else
+  brew "xclip"
+end
+BREW
+    run check
+    assert_success
+    assert_output_contains "0 error(s), 0 warning(s)"
+}
+
+@test "check: a duplicate is found whichever quotes are used" {
+    printf "brew 'jq'\n" | file "lists/core.Brewfile"
+    printf 'brew "jq"\n' | file "lists/more.Brewfile"
+    run check
+    assert_success
+    assert_output_contains "brew jq is listed more than once"
+}
+
+@test "check: _command with its brace on the next line is a config setup runs" {
+    printf '_info="Brace below"\n_command()\n{\n    true\n}\n' | file "configs/a.configs.sh"
+    printf '_info="Keyword"\nfunction _command\n{\n    true\n}\n' | file "configs/b.configs.sh"
+    run check
+    assert_success
+    assert_output_contains "0 error(s), 0 warning(s)"
+}
+
+@test "check: a list that makes its array with declare -a is read the way setup reads it" {
+    printf '# @List: aptList\ndeclare -a aptList=( "tree" )\n' | file "lists/default.apt.list.sh"
+    run check
+    assert_success
+    assert_output_contains "0 error(s), 0 warning(s)"
+}
+
+@test "check: a list whose code fails on this machine is a warning that says why" {
+    printf '# @List: aptList\naptList=( "tree" )\nfalse\n' | file "lists/default.apt.list.sh"
+    run check
+    assert_success
+    assert_output_contains "lists/default.apt.list.sh: could not be read on this machine (line 3 failed with status 1)"
+    assert_output_contains "0 error(s), 1 warning(s)"
+}

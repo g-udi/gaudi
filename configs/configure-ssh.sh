@@ -34,7 +34,7 @@ gaudi::confirm "No SSH public key found. Generate an ed25519 key now?" "y" || re
 EMAIL="${GAUDI_SSH_EMAIL:-}"
 if [[ -z "$EMAIL" ]]; then
     printf "Email address for SSH key: "
-    EMAIL="$(read_email)" || {
+    EMAIL="$(gaudi::read_email)" || {
         gaudi::warn "No email provided: skipping key generation"
         return 0
     }

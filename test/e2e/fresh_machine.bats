@@ -234,7 +234,7 @@ shared-config"
 @test "the README's safe smoke command installs only the CLI" {
     gaudi_sandbox darwin
 
-    run "$GAUDI_ROOT/setup.sh" --yes --skip-prereqs --skip-templates --skip-software --skip-configs --skip-shell-helpers --skip-ssh --skip-cleanup
+    run "$GAUDI_ROOT/setup.sh" --yes --skip-prereqs --skip-templates --skip-software --skip-configs --skip-shell-helpers --skip-ssh --skip-dotfiles --skip-cleanup
     assert_success
     assert_equal "$(machine_snapshot)" ""
     assert_equal "$(calls | grep -v '^uname' || true)" ""

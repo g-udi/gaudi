@@ -4,7 +4,7 @@ set -euo pipefail
 
 GAUDI="${GAUDI:-$HOME/.gaudi}"
 GAUDI_REPO_URL="${GAUDI_REPO_URL:-https://github.com/g-udi/gaudi.git}"
-GAUDI_BRANCH="${GAUDI_BRANCH:-master}"
+GAUDI_BRANCH="${GAUDI_BRANCH:-main}"
 export GAUDI
 
 log() {
@@ -106,7 +106,10 @@ install_or_update_repo() {
     if [[ -d "$GAUDI/.git" ]]; then
         log "Updating existing Gaudi checkout at $GAUDI"
         git -C "$GAUDI" fetch --depth=1 origin "$GAUDI_BRANCH"
-        if [[ -n "$(git -C "$GAUDI" status --porcelain)" ]]; then
+        # Only edits to Gaudi's own files block an update. Untracked files are
+        # left alone: other tools keep their data next to Gaudi (widgets, the
+        # helper), and a checkout that merely contains them must still update.
+        if [[ -n "$(git -C "$GAUDI" status --porcelain --untracked-files=no)" ]]; then
             log "Local changes found in $GAUDI: keeping the installed version."
             log "Commit or discard them and rerun to update."
             return

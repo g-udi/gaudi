@@ -72,7 +72,7 @@ publish() {
 @test "GAUDI_BRANCH installs another branch" {
     git -C "$REMOTE" checkout -q -b next
     publish "only-on-next.txt" "next"
-    git -C "$REMOTE" checkout -q master
+    git -C "$REMOTE" checkout -q main
     export GAUDI_BRANCH="next"
 
     # shellcheck disable=SC2086
@@ -370,4 +370,19 @@ publish() {
     # shellcheck disable=SC2086
     run -127 install $SKIP_ALL
     assert_called "sudo zypper --non-interactive install curl git"
+}
+
+@test "files that other tools keep next to Gaudi do not block an update" {
+    # shellcheck disable=SC2086
+    install $SKIP_ALL >/dev/null 2>&1
+    mkdir -p "$HOME/.gaudi/widgets" "$HOME/.gaudi/gaudi-helper"
+    printf 'data\n' > "$HOME/.gaudi/widgets/state.json"
+    publish "added-later.txt" "later"
+
+    # shellcheck disable=SC2086
+    run install $SKIP_ALL
+    assert_success
+    refute_output_contains "Local changes found"
+    assert_file_exists "$HOME/.gaudi/added-later.txt"
+    assert_file_contains "$HOME/.gaudi/widgets/state.json" "data"
 }

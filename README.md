@@ -60,7 +60,7 @@ The main motivation behind Gaudi is:
 Install Gaudi from the command line:
 
 ```sh
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi/master/install.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi/main/install.sh)"
 ```
 
 The installer makes sure Git is available (on a fresh Mac it installs [Homebrew](https://brew.sh/), which brings the Xcode Command Line Tools), clones Gaudi into `~/.gaudi` and starts the setup. It works on the Bash 3.2 that ships with macOS; nothing needs to be installed first. On Linux it uses `sudo`, or runs the commands directly when you are already root (a container, a fresh server).
@@ -68,7 +68,7 @@ The installer makes sure Git is available (on a fresh Mac it installs [Homebrew]
 Setup flags go after a name for the script:
 
 ```sh
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi/master/install.sh)" gaudi --yes --skip-ssh
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi/main/install.sh)" gaudi --yes --skip-ssh
 ```
 
 You can also clone the repository manually and run setup:
@@ -78,15 +78,15 @@ git clone https://github.com/g-udi/gaudi.git ~/.gaudi
 ~/.gaudi/setup.sh
 ```
 
-Safe smoke setup that does not install packages, clone templates, or change machine configuration:
+Safe smoke setup that only links the `gaudi` command (and adds its directory to your shell profile when it is not on `PATH`). It does not install packages, clone templates, restore dotfiles or change machine configuration:
 
 ```sh
-~/.gaudi/setup.sh --yes --skip-prereqs --skip-templates --skip-software --skip-configs --skip-shell-helpers --skip-ssh --skip-cleanup
+~/.gaudi/setup.sh --yes --skip-prereqs --skip-templates --skip-software --skip-configs --skip-shell-helpers --skip-ssh --skip-dotfiles --skip-cleanup
 ```
 
 ### Updating
 
-Run the installer again. It fetches the latest Gaudi, keeps your templates, and reruns the setup; everything already installed is left alone. If you changed files inside `~/.gaudi`, the installer keeps your version and tells you so instead of overwriting it.
+Run the installer again. It fetches the latest Gaudi, keeps your templates, and reruns the setup; everything already installed is left alone. If you changed Gaudi's own files inside `~/.gaudi`, the installer keeps your version and tells you so instead of overwriting it. Files that other tools keep there (untracked by Git) do not block an update.
 
 ## What does Gaudi do?
 
@@ -119,7 +119,7 @@ A package, hook or configuration script that fails does not stop the run. Gaudi 
 
 ## CLI
 
-After setup, Gaudi installs a `gaudi` command into `${GAUDI_BIN_DIR:-$HOME/.local/bin}` and adds that directory to the detected shell profile when needed.
+Setup links a `gaudi` command into `${GAUDI_BIN_DIR:-$HOME/.local/bin}` and adds that directory to the detected shell profile when it is not on `PATH`.
 
 | Command | What it does |
 | --- | --- |
@@ -144,11 +144,15 @@ gaudi setup --skip-dotfiles
 gaudi setup --skip-cleanup
 ```
 
-To see what a run would do without doing it:
+`--yes` can also be written `-y`.
+
+To see what the software, configuration and dotfiles stages would do without doing it:
 
 ```sh
-GAUDI_DRY_RUN=true gaudi setup --yes --skip-prereqs
+GAUDI_DRY_RUN=true gaudi setup --yes --skip-prereqs --skip-ssh --skip-templates --skip-shell-helpers --skip-cleanup
 ```
+
+A dry run covers Brewfiles, lists, hooks, configuration scripts and dotfiles. The other stages have no dry-run mode, which is why they are skipped here.
 
 ## Backup and Restore
 
@@ -182,7 +186,7 @@ To restore on another machine:
 
 ```sh
 GAUDI_DEFAULT_TEMPLATES_URL="git@github.com:you/your-templates.git" \
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi/master/install.sh)" gaudi --yes
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi/main/install.sh)" gaudi --yes
 ```
 
 A restore only adds software; it never removes what is already on the machine. If a package no longer exists, the rest is still restored and the failure is listed at the end.
@@ -197,7 +201,7 @@ Every setup flag has a variable, and a few more settings only exist as variables
 | --- | --- | --- |
 | `GAUDI` | `~/.gaudi` | Where Gaudi is installed |
 | `GAUDI_REPO_URL` | `https://github.com/g-udi/gaudi.git` | Repository the installer clones |
-| `GAUDI_BRANCH` | `master` | Branch the installer clones and updates |
+| `GAUDI_BRANCH` | `main` | Branch the installer clones and updates |
 | `GAUDI_TEMPLATES_LOCATION` | `$GAUDI/templates` | Where the templates live |
 | `GAUDI_DEFAULT_TEMPLATES_URL` | `https://github.com/g-udi/gaudi-templates.git` | Templates repository offered at the prompt |
 | `GAUDI_ASSUME_YES` | `false` | Same as `--yes` |
@@ -214,7 +218,7 @@ Every setup flag has a variable, and a few more settings only exist as variables
 
 ## Using Gaudi next to gaudi-shell
 
-[gaudi-shell](https://github.com/g-udi/gaudi-shell) is a separate project that manages shell aliases, plugins, completions and themes. Its command is `gshell` (and the short alias `g`); `gaudi` is this tool. They do not share commands or variables: gaudi-shell exports `GAUDI_SHELL*` variables, which Gaudi never reads.
+[gaudi-shell](https://github.com/g-udi/gaudi-shell) is a separate project that manages shell aliases, plugins, completions and themes. It evolved from [gaudi-bash](https://github.com/g-udi/gaudi-bash), whose own command is `gbash`. The gaudi-shell command is `gshell` (and the short alias `g`); `gaudi` is this tool. They do not share commands or variables: gaudi-shell exports `GAUDI_SHELL*` variables, which Gaudi never reads.
 
 ## Supported Systems and Shells
 
@@ -226,7 +230,7 @@ Fully automated OS paths:
 - Arch Linux
 - openSUSE
 
-On Linux, Gaudi works for a regular user with `sudo` and for root. Homebrew refuses to run as root, so Brewfiles are skipped there; the system package lists, configs and dotfiles still apply.
+On Linux, Homebrew is optional: the prerequisites stage offers to install it, because it is what installs Brewfiles there. Gaudi works for a regular user with `sudo` and for root. Homebrew refuses to run as root, so Brewfiles are skipped there; the system package lists, gem lists, configs and dotfiles still apply.
 
 Shell profile support:
 
@@ -313,6 +317,8 @@ Hooks are shell scripts in the templates that Gaudi sources around the software 
 | `pre.bundle-<name>.<topic>.hooks.sh` / `post.bundle-<name>.<topic>.hooks.sh` | Same, when one Brewfile needs several hooks |
 | `pre.apt.hooks.sh`, `pre.dnf.hooks.sh`, `post.pacman.hooks.sh`, `post.gem.hooks.sh`, ... | Around the apt, dnf, pacman, zypper and gem lists |
 
+A file named plain `Brewfile` goes by the name `default`, so its hooks are `pre.bundle-default.hooks.sh` and `post.bundle-default.hooks.sh`.
+
 Hooks run inside the setup, so they can use its helpers: `command_exists <tool>`, `gaudi::confirm "Question?" "n"` (which follows `--yes` and the no-terminal defaults), and `gaudi::record_failure "what failed"` to report a problem in the final summary.
 
 ### Configuration Scripts
@@ -381,11 +387,7 @@ configs/
   configure-gaudi.sh
   configure-ssh.sh
 lib/
-  debian/        fedora/, arch/, opensuse/ and osx/ hold the same three files
-    cleanup.sh
-    configure.sh
-    install-pre-requisits.sh
-  osx/
+  osx/           debian/, fedora/, arch/ and opensuse/ hold the same three files
     cleanup.sh
     configure.sh
     install-pre-requisits.sh
@@ -419,7 +421,7 @@ test/run e2e --filter "backup"
 test/run --jobs 1        # one test file at a time
 ```
 
-The suite is written with [bats-core](https://github.com/bats-core/bats-core). The runner uses `bats` from `PATH` (`brew install bats-core`, `apt-get install bats`), or the copy in a sibling [gaudi-shell](https://github.com/g-udi/gaudi-shell) checkout.
+The suite is written with [bats-core](https://github.com/bats-core/bats-core). The runner uses `bats` from `PATH` (`brew install bats-core`, `apt-get install bats`), the copy in a sibling [gaudi-shell](https://github.com/g-udi/gaudi-shell) checkout, or the one named by `BATS=/path/to/bats`.
 
 | Suite | What it covers |
 | --- | --- |
@@ -432,7 +434,7 @@ Unit and end-to-end tests never touch the machine they run on. Each test gets a 
 
 ### Continuous integration
 
-[GitHub Actions](https://github.com/g-udi/gaudi/actions/workflows/tests.yml) runs on every pull request, on every push to `master`, and in the merge queue:
+[GitHub Actions](https://github.com/g-udi/gaudi/actions/workflows/tests.yml) runs on every pull request, on every push to `main`, and in the merge queue:
 
 | Job | Runs |
 | --- | --- |
@@ -441,7 +443,7 @@ Unit and end-to-end tests never touch the machine they run on. Each test gets a 
 | `real-macos` | `test/real/macos.sh`: a real formula installed, backed up, removed and restored with Homebrew |
 | `tests passed` | Succeeds only when all of the above did |
 
-To block merging until the tests pass, require the `tests passed` check on `master` (repository Settings, Branches or Rulesets). It is one check, so the rule does not need changing when jobs are added.
+To block merging until the tests pass, require the `tests passed` check on `main` (repository Settings, Branches or Rulesets). It is one check, so the rule does not need changing when jobs are added.
 
 ### Rules the code follows
 

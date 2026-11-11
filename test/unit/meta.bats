@@ -207,7 +207,7 @@ WORKFLOW=".github/workflows/tests.yml"
     grep -q 'run: test/run --every-bash' "$WORKFLOW"
     grep -q 'run: test/run real' "$WORKFLOW"
     grep -q 'GAUDI_E2E_REAL_MACOS=1 test/real/macos.sh' "$WORKFLOW"
-    grep -q 'os: \[macos-latest, ubuntu-latest\]' "$WORKFLOW"
+    grep -q 'os: \[macos-latest, ubuntu-24.04\]' "$WORKFLOW"
 }
 
 @test "the 'tests passed' gate waits for every other job and cannot be skipped" {

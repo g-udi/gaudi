@@ -27,7 +27,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        # ubuntu-24.04 rather than ubuntu-latest: pinned so the image does not change under the tests
+        os: [macos-latest, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -38,9 +39,14 @@ jobs:
       - name: Install bats and ShellCheck (Linux)
         if: runner.os == 'Linux'
         run: |
-          # The runners' package mirrors fail to resolve now and then: retry before giving up
+          # Install only what the runner image lacks, and retry: the package mirrors
+          # fail to resolve now and then.
+          missing=""
+          for tool in bats shellcheck; do command -v "$tool" > /dev/null 2>&1 || missing="$missing $tool"; done
+          [ -n "$missing" ] || exit 0
           for attempt in 1 2 3 4 5; do
-            sudo apt-get update && sudo apt-get install -y bats shellcheck && break
+            # shellcheck disable=SC2086
+            sudo apt-get update && sudo apt-get install -y $missing && break
             if [ "$attempt" = 5 ]; then exit 1; fi
             echo "apt failed (attempt $attempt), retrying in 20 seconds"; sleep 20
           done

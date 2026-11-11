@@ -7,6 +7,14 @@ GAUDI_REPO_URL="${GAUDI_REPO_URL:-https://github.com/g-udi/gaudi.git}"
 GAUDI_BRANCH="${GAUDI_BRANCH:-main}"
 export GAUDI
 
+# The setup options are passed through; --yes also applies to this installer
+assume_yes="${GAUDI_ASSUME_YES:-false}"
+for argument in "$@"; do
+    case "$argument" in
+        --yes|-y) assume_yes="true" ;;
+    esac
+done
+
 log() {
     printf "%s\n" "$*"
 }
@@ -62,7 +70,14 @@ install_minimum_prerequisites() {
                     log "Could not download the Homebrew installer. Check the network and rerun this command."
                     exit 1
                 }
-                /bin/bash -c "$homebrew_installer"
+                # --yes must not wait at Homebrew's "press RETURN" either.
+                # (bin/helpers.sh has the same rule; this script runs before
+                # Gaudi is cloned, so it cannot share that function.)
+                if [[ "$assume_yes" == "true" ]]; then
+                    NONINTERACTIVE=1 /bin/bash -c "$homebrew_installer"
+                else
+                    /bin/bash -c "$homebrew_installer"
+                fi
                 load_brew
             fi
             if ! command_exists git; then

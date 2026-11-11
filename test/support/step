@@ -14,7 +14,7 @@ export SOURCE_LOCATION
 GAUDI="${GAUDI:-$SOURCE_LOCATION}"
 export GAUDI
 
-for library in colors helpers commands installer; do
+for library in colors helpers templates commands installer; do
     # shellcheck source=/dev/null
     source "$SOURCE_LOCATION/bin/$library.sh"
 done
@@ -23,8 +23,8 @@ if [[ "${GAUDI_TEST_INTERACTIVE:-0}" == "1" ]]; then
     gaudi::interactive() { return 0; }
 fi
 
-get_os
-get_shell_type
+gaudi::detect_os
+gaudi::detect_shell
 
 for step_file in "$@"; do
     # shellcheck source=/dev/null

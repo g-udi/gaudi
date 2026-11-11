@@ -45,10 +45,6 @@ gaudi::interactive() {
     [[ -t 0 ]]
 }
 
-command_exists() {
-    gaudi::command_exists "$@"
-}
-
 gaudi::log() {
     printf "%b\n" "${BLUE:-}[INFO]${NC:-} $*"
 }
@@ -84,7 +80,9 @@ gaudi::report_failures() {
     return 1
 }
 
-get_os() {
+# Sets and exports OS: osx, debian, fedora, arch, opensuse, or a name Gaudi
+# does not automate (centos, linux, unknown).
+gaudi::detect_os() {
     local kernel=""
 
     kernel="$(uname -s 2>/dev/null || printf unknown)"
@@ -115,21 +113,10 @@ get_os() {
     export OS
 }
 
-gaudi::supported_os() {
-    case "${OS:-}" in
-        osx|debian|fedora|arch|opensuse)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
 # Sets GAUDI_SETUP_SHELL and GAUDI_SETUP_PROFILE.
 # These names deliberately avoid the GAUDI_SHELL_* namespace, which belongs to
 # gaudi-shell and is exported in every session where it is loaded.
-get_shell_type() {
+gaudi::detect_shell() {
     local shell_name="${GAUDI_TARGET_SHELL:-}"
     local profile="${GAUDI_SETUP_PROFILE:-}"
 
@@ -177,7 +164,10 @@ get_shell_type() {
     export GAUDI_SETUP_SHELL GAUDI_SETUP_PROFILE
 }
 
-read_answer() {
+# Read a one-key answer. Prints "y" without asking under GAUDI_ASSUME_YES, and
+# the default (or "n") when nobody is at the keyboard.
+#   gaudi::read_answer [allowed characters] [default]
+gaudi::read_answer() {
     local options="${1:-yYnN}"
     local default="${2:-}"
     local input=""
@@ -219,12 +209,12 @@ gaudi::confirm() {
 
     [[ "$default" =~ ^[Yy]$ ]] && suffix="[Y/n]"
     printf "%b " "$prompt $suffix"
-    answer="$(read_answer "yYnN" "$default")"
+    answer="$(gaudi::read_answer "yYnN" "$default")"
     [[ "$answer" =~ ^[Yy]$ ]]
 }
 
 # Returns 1 when stdin is exhausted before a valid address is entered.
-read_email() {
+gaudi::read_email() {
     local input=""
     local email_regex="^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"
 
@@ -239,14 +229,19 @@ read_email() {
     printf "%s" "$input"
 }
 
-# Returns 1 when stdin is exhausted and the URL is still unreachable.
-read_git_url() {
+# Read a Git URL that can be reached; an empty answer takes the default.
+# Under GAUDI_ASSUME_YES nothing is read: the default is the answer.
+# Returns 1 when stdin is exhausted (or the default was taken without asking)
+# and the URL is still unreachable.
+gaudi::read_git_url() {
     local input=""
     local default="${1:-https://github.com/g-udi/gaudi-templates.git}"
     local eof="false"
 
+    [[ "${GAUDI_ASSUME_YES:-false}" == "true" ]] && eof="true"
+
     while true; do
-        IFS= read -e -r input || eof="true"
+        [[ "$eof" == "true" ]] || IFS= read -e -r input || eof="true"
         input="${input:-$default}"
         if GIT_TERMINAL_PROMPT=0 git ls-remote "$input" >/dev/null 2>&1; then
             break
@@ -285,17 +280,13 @@ gaudi::shell_path_line() {
     fi
 }
 
-# Locate the brew binary even when it is not on PATH yet (fresh install).
-gaudi::brew_bin() {
-    gaudi::find_command brew
-}
-
 # Load Homebrew into this shell and make sure new shells get it too.
 gaudi::activate_brew() {
     local brew_bin=""
     local line=""
 
-    brew_bin="$(gaudi::brew_bin)" || return 1
+    # Homebrew is not on PATH yet right after it is installed
+    brew_bin="$(gaudi::find_command brew)" || return 1
     eval "$("$brew_bin" shellenv)"
 
     if [[ "${GAUDI_SETUP_SHELL:-}" == "fish" ]]; then
@@ -391,6 +382,16 @@ gaudi::source_if_exists() {
     fi
 }
 
+# Run the Homebrew installer. Under GAUDI_ASSUME_YES it is told not to wait
+# for RETURN (NONINTERACTIVE=1), which it otherwise does on a terminal.
+# install.sh has its own copy of this: it runs before Gaudi is cloned.
+gaudi::install_homebrew() {
+    (
+        [[ "${GAUDI_ASSUME_YES:-false}" != "true" ]] || export NONINTERACTIVE=1
+        gaudi::run_remote_script /bin/bash "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
+    )
+}
+
 # Homebrew on Linux is optional: it is what installs Brewfiles there.
 # Homebrew refuses to run as root, so root only gets the distribution packages.
 gaudi::offer_linuxbrew() {
@@ -399,8 +400,7 @@ gaudi::offer_linuxbrew() {
     elif gaudi::is_root; then
         gaudi::warn "Homebrew cannot be installed as root: run Gaudi as a regular user to install Brewfiles"
     elif gaudi::confirm "Install Homebrew on Linux? It is required for Brewfiles." "n"; then
-        gaudi::run_remote_script /bin/bash "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh" \
-            || gaudi::record_failure "Homebrew installation"
+        gaudi::install_homebrew || gaudi::record_failure "Homebrew installation"
     fi
 
     if gaudi::command_exists brew; then
@@ -545,26 +545,72 @@ gaudi::call_guarded() {
     gaudi::guarded "$1" "$2"
 }
 
-# Source every template hook whose file name matches the given pattern.
-# A failing hook is recorded, not fatal.
-gaudi::run_hooks_matching() {
-    local pattern="$1"
-    local hook=""
+# Run one template hook. A failing hook is recorded, not fatal.
+gaudi::run_hook() {
+    local hook="$1"
 
-    [[ -d "${GAUDI_TEMPLATES_LOCATION:-}" ]] || return 0
-    while IFS= read -r -u 4 hook; do
-        [[ -n "$hook" ]] || continue
-        # Hooks run real commands, so a dry run must only name them
-        if [[ "${GAUDI_DRY_RUN:-false}" == "true" ]]; then
-            printf "DRY RUN: hook %s\n" "$hook"
-            continue
-        fi
-        gaudi::log "Running hook: $hook"
-        gaudi::source_guarded "$hook"
-        [[ -z "$gaudi_guarded_failure" ]] || gaudi::record_failure "hook $hook: $gaudi_guarded_failure"
-    done 4< <(find "$GAUDI_TEMPLATES_LOCATION" -type f -iname "$pattern" -print | sort)
+    # Hooks run real commands, so a dry run must only name them
+    if [[ "${GAUDI_DRY_RUN:-false}" == "true" ]]; then
+        printf "DRY RUN: hook %s\n" "$hook"
+        return 0
+    fi
+    gaudi::log "Running hook: $hook"
+    gaudi::source_guarded "$hook"
+    [[ -z "$gaudi_guarded_failure" ]] || gaudi::record_failure "hook $hook: $gaudi_guarded_failure"
 }
 
-_echo() {
-    printf "%b" "$*"
+# Run every template hook whose file name matches the given pattern.
+gaudi::run_hooks_matching() {
+    local hook=""
+
+    while IFS= read -r -u 4 hook; do
+        [[ -n "$hook" ]] || continue
+        gaudi::run_hook "$hook"
+    done 4< <(gaudi::hook_files "$1")
+}
+
+# Run the hooks of one Brewfile: <phase>.bundle-<name>.hooks.sh, then
+# <phase>.bundle-<name>.<topic>.hooks.sh for several hooks per Brewfile. A
+# file that belongs to a Brewfile with a longer name (dev.tools, when this
+# one is dev) is left to that Brewfile.
+#   gaudi::run_bundle_hooks <pre|post> <Brewfile name>
+gaudi::run_bundle_hooks() {
+    local phase="$1"
+    local name="$2"
+    local hook=""
+    local owner=""
+
+    while IFS= read -r -u 4 hook; do
+        [[ -n "$hook" ]] || continue
+        owner="$(gaudi::bundle_hook_owner "$hook")"
+        [[ -z "$owner" || "$owner" == "$name" ]] || continue
+        gaudi::run_hook "$hook"
+    done 4< <(gaudi::hook_files "$phase.bundle-$name.hooks.sh"; gaudi::hook_files "$phase.bundle-$name.*.hooks.sh")
+}
+
+# --- Names from before the gaudi:: prefix ---------------------------------------
+# Hooks and configuration scripts in existing templates call these.
+
+command_exists() {
+    gaudi::command_exists "$@"
+}
+
+get_os() {
+    gaudi::detect_os "$@"
+}
+
+get_shell_type() {
+    gaudi::detect_shell "$@"
+}
+
+read_answer() {
+    gaudi::read_answer "$@"
+}
+
+read_email() {
+    gaudi::read_email "$@"
+}
+
+read_git_url() {
+    gaudi::read_git_url "$@"
 }

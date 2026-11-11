@@ -1,89 +1,34 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # shellcheck disable=SC1090
+# shellcheck disable=SC2154  # gaudi_entry_* and gaudi_legacy_list_types come from bin/templates.sh
 
 GAUDI_TEMPLATES_LOCATION="${GAUDI_TEMPLATES_LOCATION:-${GAUDI:-$HOME/.gaudi}/templates}"
 
 # Everything Homebrew can install (formulae, casks, taps, Mac App Store apps,
 # npm, go, cargo, uv, VS Code extensions) is declared in Brewfiles.
 # The list engine below only remains for managers brew bundle does not cover.
-softwareLists=(
-    "debian|apt::sudo apt-get install -y"
-    "fedora|dnf::sudo dnf install -y"
-    "arch|pacman::sudo pacman -S --noconfirm --needed"
-    "opensuse|zypper::sudo zypper --non-interactive install"
-    "*|gem::gem_install_or_update install"
-)
-
-# List types that used to exist and now belong in a Brewfile
-legacyListTypes=(tap brew cask mas npm pip go)
-
-gaudi::brewfiles() {
-    [[ -d "$GAUDI_TEMPLATES_LOCATION" ]] || return 0
-    find "$GAUDI_TEMPLATES_LOCATION" -type f \( -name "Brewfile" -o -name "*.Brewfile" \) -print | sort
-}
-
-gaudi::brewfile_name() {
-    local base="${1##*/}"
-
-    if [[ "$base" == "Brewfile" ]]; then
-        printf "default"
-    else
-        printf "%s" "${base%.Brewfile}"
-    fi
-}
-
-gaudi::template_files_for_type() {
-    local list_type="$1"
-
-    [[ -d "$GAUDI_TEMPLATES_LOCATION" ]] || return 0
-    find "$GAUDI_TEMPLATES_LOCATION" -type f \
-        \( -iname "*.${list_type}.list.sh" -o -iname "*.${list_type}.sh" -o -iname "*.${list_type}-*.list.sh" -o -iname "*.${list_type}-*.sh" \) \
-        ! -iname "*.hooks.sh" \
-        -print | sort
-}
-
-gaudi::installer_available_for_type() {
-    case "$1" in
-        apt)
-            gaudi::command_exists apt-get
-            ;;
-        dnf)
-            gaudi::command_exists dnf
-            ;;
-        pacman)
-            gaudi::command_exists pacman
-            ;;
-        zypper)
-            gaudi::command_exists zypper
-            ;;
-        gem)
-            gaudi::command_exists gem
-            ;;
-        *)
-            return 0
-            ;;
-    esac
-}
+# Which files are Brewfiles and lists, and what installs a list, is defined in
+# bin/templates.sh.
 
 # Ask about every entry of a Brewfile and write the accepted ones to a new
-# file. Taps, cask_args, comments and anything else that is not a package are
-# kept, so the result is still a valid Brewfile.
+# file. Taps, cask_args, comments, the keywords of a Ruby block and anything
+# else that is not a package are kept, so the result is still a valid Brewfile.
 #   gaudi::pick_brewfile_entries <brewfile> <output file>
 gaudi::pick_brewfile_entries() {
     local brewfile="$1"
     local picked="$2"
     local line=""
     local description=""
-    local entry_re='^[[:space:]]*(brew|cask|mas|npm|uv|go|cargo|vscode|whalebrew|flatpak|krew)[[:space:]]+"([^"]+)"'
     local comment_re='^[[:space:]]*#[[:space:]]*(.*)$'
 
     : > "$picked"
     while IFS= read -r -u 5 line || [[ -n "$line" ]]; do
-        if [[ "$line" =~ $entry_re ]]; then
-            printf "\n%b\n" "${MAGENTA:-}${BASH_REMATCH[2]}${NC:-} (${BASH_REMATCH[1]})"
+        # A tap is not a package: it is kept, like every other line
+        if gaudi::brewfile_entry "$line" && [[ "$gaudi_entry_type" != "tap" ]]; then
+            printf "\n%b\n" "${MAGENTA:-}${gaudi_entry_name}${NC:-} (${gaudi_entry_type})"
             [[ -n "$description" ]] && printf "%b\n" "${YELLOW:-}Description:${NC:-} $description"
-            if gaudi::confirm "Install ${BASH_REMATCH[2]}?" "n"; then
+            if gaudi::confirm "Install ${gaudi_entry_name}?" "n"; then
                 printf "%s\n" "$line" >> "$picked"
             fi
             description=""
@@ -122,12 +67,9 @@ gaudi::install_brewfile() {
         to_install="$picked"
     fi
 
-    # pre.bundle-<name>.hooks.sh, or pre.bundle-<name>.<topic>.hooks.sh for several hooks per Brewfile
-    gaudi::run_hooks_matching "pre.bundle-${name}.hooks.sh"
-    gaudi::run_hooks_matching "pre.bundle-${name}.*.hooks.sh"
+    gaudi::run_bundle_hooks pre "$name"
     gaudi::bundle_install "$to_install" || gaudi::record_failure "some entries in $brewfile (rerun: brew bundle install --file=$brewfile)"
-    gaudi::run_hooks_matching "post.bundle-${name}.hooks.sh"
-    gaudi::run_hooks_matching "post.bundle-${name}.*.hooks.sh"
+    gaudi::run_bundle_hooks post "$name"
 
     [[ -n "$picked" ]] && rm -f "$picked"
     return 0
@@ -135,14 +77,17 @@ gaudi::install_brewfile() {
 
 gaudi::install_list_file() {
     local list_file="$1"
-    local list_command="$2"
-    local list_type="$3"
+    local list_type="$2"
+    local list_command=""
     local list_name=""
     local list_title=""
     local list_description=""
-    local list_ref=""
-    local list_count=0
+    local list_output=""
+    local list_result=""
+    local item=""
+    local -a list_items=()
 
+    list_command="$(gaudi::list_install_command "$list_type")" || return 0
     list_name="$(gaudi::metadata_value "$list_file" "@List")"
     list_title="$(gaudi::metadata_value "$list_file" "@Name")"
     list_description="$(gaudi::metadata_value "$list_file" "@Description")"
@@ -158,29 +103,48 @@ gaudi::install_list_file() {
     [[ -n "$list_description" ]] && printf "%b\n" "${MAGENTA:-}$list_description${NC:-}"
     gaudi::confirm "Proceed with this list?" "n" || return 0
 
-    gaudi::source_guarded "$list_file"
-    if [[ -n "$gaudi_guarded_failure" ]]; then
-        gaudi::record_failure "list $list_file: $gaudi_guarded_failure"
-        return 0
-    fi
-    list_ref="${list_name}[@]"
-
-    if ! declare -p "$list_name" >/dev/null 2>&1; then
-        gaudi::warn "Skipping $list_file: array not defined: $list_name"
-        return 0
+    # The list file runs in a subshell and only its items come back. A dry
+    # run does not run it at all: it reads the array as written in the file.
+    if [[ "${GAUDI_DRY_RUN:-false}" == "true" ]]; then
+        list_output="$(gaudi::list_items_static "$list_file" "$list_name")"
+    else
+        list_output="$(gaudi::list_items "$list_file" "$list_name")"
     fi
 
-    # Expanding an empty array is an error under `set -u` on bash 3.2
-    eval "list_count=\${#${list_name}[@]}"
-    if [[ "${list_count:-0}" -eq 0 ]]; then
+    # The first line says how reading went, the rest are the items
+    while IFS= read -r item; do
+        if [[ -z "$list_result" ]]; then
+            list_result="$item"
+        elif [[ -n "$item" ]]; then
+            list_items+=("$item")
+        fi
+    done <<< "$list_output"
+
+    case "$list_result" in
+        ok) ;;
+        failed*)
+            gaudi::record_failure "list $list_file: ${list_result#failed }"
+            return 0
+            ;;
+        *)
+            if [[ "${GAUDI_DRY_RUN:-false}" == "true" ]]; then
+                printf "DRY RUN: list %s is not read: its %s array is built by code, which a dry run does not execute\n" "$list_file" "$list_name"
+            else
+                gaudi::warn "Skipping $list_file: array not defined: $list_name"
+            fi
+            return 0
+            ;;
+    esac
+
+    if [[ ${#list_items[@]} -eq 0 ]]; then
         gaudi::warn "Skipping $list_file: the list is empty"
         return 0
     fi
 
     if gaudi::confirm "Install all recommended items from $list_title?" "y"; then
-        installSoftwareList "$list_command" "false" "${!list_ref}"
+        gaudi::install_list_items "$list_command" "false" "${list_items[@]}"
     else
-        installSoftwareList "$list_command" "true" "${!list_ref}"
+        gaudi::install_list_items "$list_command" "true" "${list_items[@]}"
     fi
 }
 
@@ -210,34 +174,28 @@ if [[ "$brewfile_count" -gt 0 ]]; then
     fi
 fi
 
-for legacy_type in "${legacyListTypes[@]}"; do
+for list_type in $gaudi_legacy_list_types; do
     while IFS= read -r list_file; do
         [[ -n "$list_file" ]] || continue
-        gaudi::warn "Ignoring $list_file: '$legacy_type' lists moved to Brewfiles (see README)"
-    done < <(gaudi::template_files_for_type "$legacy_type")
+        gaudi::warn "Ignoring $list_file: '$list_type' lists moved to Brewfiles (see README)"
+    done < <(gaudi::list_files "$list_type")
 done
 
 # --- Lists for managers brew bundle does not cover ---------------------------
+# The package manager of this operating system, then gems
 
-for item in "${softwareLists[@]}"; do
-    operatingSystem="${item%%|*}"
-    list="${item%%::*}"
-    listType="${list#*|}"
-    listCommand="${item#*::}"
-
-    [[ "$operatingSystem" == "$OS" || "$operatingSystem" == "*" ]] || continue
-
-    if ! gaudi::installer_available_for_type "$listType"; then
-        gaudi::warn "Skipping $listType lists: required package manager is not available"
+for list_type in $(gaudi::os_list_type) gem; do
+    if ! gaudi::command_exists "$(gaudi::list_tool "$list_type")"; then
+        gaudi::warn "Skipping $list_type lists: required package manager is not available"
         continue
     fi
 
-    gaudi::run_hooks_matching "pre.${listType}*.hooks.sh"
+    gaudi::run_hooks_matching "pre.${list_type}*.hooks.sh"
 
     while IFS= read -r -u 3 list_file; do
         [[ -n "$list_file" ]] || continue
-        gaudi::install_list_file "$list_file" "$listCommand" "$listType"
-    done 3< <(gaudi::template_files_for_type "$listType")
+        gaudi::install_list_file "$list_file" "$list_type"
+    done 3< <(gaudi::list_files "$list_type")
 
-    gaudi::run_hooks_matching "post.${listType}*.hooks.sh"
+    gaudi::run_hooks_matching "post.${list_type}*.hooks.sh"
 done

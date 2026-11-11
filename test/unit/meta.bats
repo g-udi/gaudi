@@ -81,19 +81,51 @@ test_files() {
     done < <(source_files)
 }
 
+# The functions a library defines
+library_functions() {
+    sed -n 's/^\([A-Za-z_][A-Za-z0-9_:]*\)() {.*/\1/p' "$1"
+}
+
+# True when a test calls the function, by its whole name:
+#   - a gaudi:: name wherever it stands as a word of its own (gaudi::guarded
+#     is not called by a test that mentions gaudi::guarded_error);
+#   - a plain name (sudo, brew, get_os) only as a command: after `call`, or
+#     first in a statement of the code a test evaluates. "brew" in
+#     "brew bundle" and "sudo" in a sentence do not count.
+# This file is left out: it names functions without calling them.
+function_is_called() {
+    local name="${1//./\\.}"
+
+    if [[ "$1" == *::* ]]; then
+        grep -rqE --exclude=meta.bats -- "(^|[^A-Za-z0-9_:])${name}([^A-Za-z0-9_:]|\$)" test/unit test/e2e
+    else
+        grep -rqE --exclude=meta.bats -- "(call[[:space:]]+|eval '|; )${name}([[:space:];']|\$)" test/unit test/e2e
+    fi
+}
+
 @test "every function in the libraries is called by name in a test" {
     missing=""
-    for library in bin/helpers.sh bin/commands.sh bin/installer.sh; do
+    for library in bin/helpers.sh bin/templates.sh bin/commands.sh bin/installer.sh; do
         while IFS= read -r function_name; do
-            grep -rqF -- "$function_name" test/unit test/e2e || missing="$missing $library:$function_name"
-        done < <(sed -n 's/^\([A-Za-z_][A-Za-z0-9_:]*\)() {.*/\1/p' "$library")
+            function_is_called "$function_name" || missing="$missing $library:$function_name"
+        done < <(library_functions "$library")
     done
     [[ -z "$missing" ]] || { echo "untested functions:$missing"; return 1; }
 }
 
-@test "every function of the setup steps is defined in a file that has its own tests" {
-    # Step functions run when their file is sourced; each step file must
-    # appear in a test (checked above), and must not define functions twice.
+@test "the check for called functions wants whole names used as commands, not substrings" {
+    function_is_called "gaudi::confirm"
+    function_is_called "sudo"
+    # In the suite only as part of longer names, or in arguments and prose
+    for name in "gaudi::conf" "gaudi::guarded_" bundle install tmuxinator; do
+        if function_is_called "$name"; then
+            echo "counted as called: $name"
+            return 1
+        fi
+    done
+}
+
+@test "no function is defined twice across the libraries, the steps and the configs" {
     duplicates="$(cat lib/*.sh lib/*/*.sh configs/*.sh bin/*.sh | sed -n 's/^\([A-Za-z_][A-Za-z0-9_:]*\)() {.*/\1/p' | sort | uniq -d)"
     [[ -z "$duplicates" ]] || { echo "defined more than once: $duplicates"; return 1; }
 }
@@ -152,7 +184,7 @@ test_files() {
         fi
     done
     grep -q 'done 3< <(gaudi::brewfiles)' lib/install-software.sh
-    grep -q 'done 4< <(find' bin/helpers.sh
+    grep -q 'done 4< <(gaudi::hook_files' bin/helpers.sh
 }
 
 @test "the README's example commands use flags that exist" {
@@ -175,7 +207,7 @@ WORKFLOW=".github/workflows/tests.yml"
     grep -q 'run: test/run --every-bash' "$WORKFLOW"
     grep -q 'run: test/run real' "$WORKFLOW"
     grep -q 'GAUDI_E2E_REAL_MACOS=1 test/real/macos.sh' "$WORKFLOW"
-    grep -q 'os: \[macos-latest, ubuntu-latest\]' "$WORKFLOW"
+    grep -q 'os: \[macos-latest, ubuntu-24.04\]' "$WORKFLOW"
 }
 
 @test "the 'tests passed' gate waits for every other job and cannot be skipped" {
@@ -199,4 +231,26 @@ WORKFLOW=".github/workflows/tests.yml"
 @test "the sandbox detaches tests from the terminal, so no test waits for the keyboard" {
     grep -q '^    exec </dev/null$' test/helper.bash
     grep -q '</dev/null$' test/support/run-file
+}
+
+@test "CI pins every action to a commit, with its release in a comment" {
+    uses="$(grep -c 'uses:' "$WORKFLOW")"
+    pinned="$(grep -cE 'uses: [A-Za-z0-9_./-]+@[0-9a-f]{40} # v[0-9]' "$WORKFLOW")"
+    [[ "$uses" -gt 0 ]]
+    [[ "$uses" == "$pinned" ]] || { echo "$uses actions, $pinned pinned to a commit"; return 1; }
+}
+
+@test "the real Linux run fails in CI when Docker is missing, instead of passing with a SKIP" {
+    # A docker that is installed but cannot reach its daemon
+    mkdir -p "$BATS_TEST_TMPDIR/bin"
+    printf '#!/bin/sh\nexit 1\n' > "$BATS_TEST_TMPDIR/bin/docker"
+    chmod +x "$BATS_TEST_TMPDIR/bin/docker"
+
+    run env -u CI PATH="$BATS_TEST_TMPDIR/bin:$PATH" test/real/linux.sh debian
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == "SKIP: Docker is not available"* ]]
+
+    run env CI=true PATH="$BATS_TEST_TMPDIR/bin:$PATH" test/real/linux.sh debian
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == "FAILED: Docker is not available in CI"* ]]
 }

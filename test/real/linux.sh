@@ -5,14 +5,22 @@
 # Nothing is faked: the real package manager installs real packages, the real
 # backup reads the real package database, and the restore reinstalls packages
 # that were really removed. The container runs as root, like a fresh server
-# (Debian's image has no sudo at all). It is deleted afterwards; the host is
-# not touched.
+# (Debian's image has no sudo at all); a second pass then sets up a regular
+# user, who reaches the package manager through sudo. The container is deleted
+# afterwards; the host is not touched.
 #
 #   test/real/linux.sh                 Debian
 #   test/real/linux.sh fedora          Fedora (also: arch, opensuse)
 #   GAUDI_E2E_IMAGE=ubuntu:24.04 test/real/linux.sh debian
 #
-# Invoked without Docker available, it reports SKIP and exits 0.
+# Invoked without Docker available, it reports SKIP and exits 0. In CI (the CI
+# variable is set, as GitHub Actions does) that is a failure instead: a job
+# that ran nothing must not pass.
+#
+# Fedora, openSUSE Tumbleweed and Arch are tested at their newest image on
+# purpose, since those are what a new machine gets. That also means a change
+# in a distribution can turn this run red without a change in Gaudi; set
+# GAUDI_E2E_IMAGE to a dated tag or a digest to tell the two apart.
 set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." >/dev/null 2>&1 && pwd)"
@@ -28,6 +36,10 @@ if [[ "${1:-}" != "--inside" ]]; then
         *) printf "Unknown distribution: %s (debian, fedora, arch or opensuse)\n" "$DISTRO" >&2; exit 64 ;;
     esac
     if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
+        if [[ -n "${CI:-}" ]]; then
+            printf "FAILED: Docker is not available in CI, the real %s run was not executed\n" "$DISTRO" >&2
+            exit 1
+        fi
         printf "SKIP: Docker is not available, the real %s run was not executed\n" "$DISTRO"
         exit 0
     fi
@@ -48,21 +60,25 @@ case "$DISTRO" in
         LIST_TYPE="apt"
         LIST_NAME="aptList"
         remove_packages() { apt-get remove -y -qq "$@" >/dev/null; }
+        install_sudo() { apt-get install -y -qq sudo >/dev/null; }
         ;;
     fedora)
         LIST_TYPE="dnf"
         LIST_NAME="dnfList"
         remove_packages() { dnf remove -y -q "$@" >/dev/null; }
+        install_sudo() { dnf install -y -q sudo shadow-utils >/dev/null; }
         ;;
     arch)
         LIST_TYPE="pacman"
         LIST_NAME="pacmanList"
         remove_packages() { pacman -Rns --noconfirm "$@" >/dev/null; }
+        install_sudo() { pacman -S --noconfirm --needed sudo >/dev/null; }
         ;;
     opensuse)
         LIST_TYPE="zypper"
         LIST_NAME="zypperList"
         remove_packages() { zypper --non-interactive remove "$@" >/dev/null; }
+        install_sudo() { zypper --non-interactive install sudo shadow >/dev/null; }
         ;;
 esac
 
@@ -174,5 +190,42 @@ step "A second backup matches the first"
 # Compared in Bash: minimal images (Fedora) do not ship diff
 [[ "$(cat "$BACKUP_LIST")" == "$(cat "/tmp/backup-after-restore/default.$LIST_TYPE.list.sh")" ]] \
     || fail "the backup changed after the restore"
+
+# ----------------------------------------------------------------------------------
+# The same machine for a regular user: every package command goes through sudo.
+# (Homebrew on Linux is left out: the prerequisites stage that offers it is
+# skipped, because it would download and build for minutes.)
+# ----------------------------------------------------------------------------------
+
+step "A regular user with sudo: set up"
+install_sudo
+useradd -m tester
+printf 'tester ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/tester
+chmod 0440 /etc/sudoers.d/tester
+USER_HOME="/home/tester"
+cp -R "$GAUDI" "$USER_HOME/.gaudi"
+chown -R tester "$USER_HOME/.gaudi"
+chmod -R a+rX "$TEMPLATES"
+remove_packages tree jq
+rm -f /tmp/pre-list-hook-ran /tmp/os-config-applied
+have tree && fail "tree is still there before the user's setup"
+
+as_user() {
+    sudo -u tester -H env GAUDI="$USER_HOME/.gaudi" "$@" </dev/null
+}
+
+as_user GAUDI_TEMPLATES_LOCATION="$TEMPLATES" bash "$USER_HOME/.gaudi/setup.sh" --yes --skip-prereqs --skip-ssh --skip-templates --skip-shell-helpers
+have tree || fail "the user's setup did not install tree through sudo"
+have jq || fail "the user's setup did not install jq through sudo"
+[[ -f /tmp/pre-list-hook-ran ]] || fail "the pre.$LIST_TYPE hook did not run for the user"
+[[ "$(stat -c %U /tmp/pre-list-hook-ran)" == "tester" ]] || fail "the hook did not run as the user"
+[[ -f "$USER_HOME/.config/demo/settings.conf" ]] || fail "the dotfile was not restored into the user's home"
+[[ -L "$USER_HOME/.local/bin/gaudi" ]] || fail "the gaudi CLI was not linked for the user"
+
+step "A regular user: back up"
+as_user GAUDI_TEMPLATES_LOCATION="$TEMPLATES" "$USER_HOME/.local/bin/gaudi" backup "$USER_HOME/backup"
+grep -q '"tree"' "$USER_HOME/backup/default.$LIST_TYPE.list.sh" || fail "the user's backup does not contain tree"
+[[ -f "$USER_HOME/backup/dotfiles/.config/demo/settings.conf" ]] || fail "the user's backup does not contain the dotfile"
+as_user "$USER_HOME/.local/bin/gaudi" check "$USER_HOME/backup"
 
 printf "\nREAL E2E OK (%s)\n" "$(. /etc/os-release && printf '%s' "$PRETTY_NAME")"

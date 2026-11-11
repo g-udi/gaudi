@@ -11,11 +11,11 @@ stdout_of() { "$@" 2>/dev/null; }
 stderr_of() { { "$@" >/dev/null; } 2>&1; }
 
 shell_type() {
-    call eval 'get_os; get_shell_type; printf "%s|%s" "$GAUDI_SETUP_SHELL" "$GAUDI_SETUP_PROFILE"'
+    call eval 'gaudi::detect_os; gaudi::detect_shell; printf "%s|%s" "$GAUDI_SETUP_SHELL" "$GAUDI_SETUP_PROFILE"'
 }
 
 detected_os() {
-    call eval 'get_os; printf "%s" "$OS"'
+    call eval 'gaudi::detect_os; printf "%s" "$OS"'
 }
 
 # --- gaudi::find_command / command_exists ---------------------------------------
@@ -131,11 +131,6 @@ detected_os() {
     assert_output_equals "[ERROR] broken"
 }
 
-@test "_echo interprets escape sequences without a trailing newline" {
-    run call _echo 'a\tb'
-    assert_output_equals "$(printf 'a\tb')"
-}
-
 # --- failure tracking -------------------------------------------------------------
 
 @test "report_failures succeeds silently when nothing failed" {
@@ -158,26 +153,26 @@ detected_os() {
     assert_output_contains "  - second thing"
 }
 
-# --- get_os / supported_os ----------------------------------------------------------
+# --- gaudi::detect_os / supported_os ----------------------------------------------------------
 
-@test "get_os: Darwin is osx" {
+@test "gaudi::detect_os: Darwin is osx" {
     run detected_os
     assert_output_equals "osx"
 }
 
-@test "get_os: Linux with apt-get is debian" {
+@test "gaudi::detect_os: Linux with apt-get is debian" {
     gaudi_sandbox debian
     run detected_os
     assert_output_equals "debian"
 }
 
-@test "get_os: Linux with dnf is fedora" {
+@test "gaudi::detect_os: Linux with dnf is fedora" {
     gaudi_sandbox fedora
     run detected_os
     assert_output_equals "fedora"
 }
 
-@test "get_os: Linux with yum is centos" {
+@test "gaudi::detect_os: Linux with yum is centos" {
     gaudi_sandbox debian
     remove_tool apt-get apt-mark
     add_tool yum
@@ -185,13 +180,13 @@ detected_os() {
     assert_output_equals "centos"
 }
 
-@test "get_os: Linux with pacman is arch" {
+@test "gaudi::detect_os: Linux with pacman is arch" {
     gaudi_sandbox arch
     run detected_os
     assert_output_equals "arch"
 }
 
-@test "get_os: Linux with zypper is opensuse" {
+@test "gaudi::detect_os: Linux with zypper is opensuse" {
     gaudi_sandbox debian
     remove_tool apt-get apt-mark
     add_tool zypper
@@ -199,28 +194,28 @@ detected_os() {
     assert_output_equals "opensuse"
 }
 
-@test "get_os: Linux without a known package manager is linux" {
+@test "gaudi::detect_os: Linux without a known package manager is linux" {
     gaudi_sandbox debian
     remove_tool apt-get apt-mark
     run detected_os
     assert_output_equals "linux"
 }
 
-@test "get_os: any other kernel is unknown" {
+@test "gaudi::detect_os: any other kernel is unknown" {
     export FAKE_UNAME="FreeBSD"
     run detected_os
     assert_output_equals "unknown"
 }
 
-@test "get_os: a missing uname is unknown, not a crash" {
+@test "gaudi::detect_os: a missing uname is unknown, not a crash" {
     remove_tool uname
     run detected_os
     assert_success
     assert_output_equals "unknown"
 }
 
-@test "get_os exports OS to child processes" {
-    run call eval 'get_os; bash -c "printf %s \"\$OS\""'
+@test "gaudi::detect_os exports OS to child processes" {
+    run call eval 'gaudi::detect_os; bash -c "printf %s \"\$OS\""'
     assert_output_equals "osx"
 }
 
@@ -241,7 +236,7 @@ detected_os() {
     done
 }
 
-# --- get_shell_type -------------------------------------------------------------------
+# --- gaudi::detect_shell -------------------------------------------------------------------
 
 @test "shell: zsh uses ~/.zshrc" {
     export SHELL="/bin/zsh"
@@ -313,7 +308,7 @@ detected_os() {
 }
 
 @test "shell: the result is exported to child processes" {
-    run call eval 'get_os; get_shell_type; bash -c "printf %s \"\$GAUDI_SETUP_SHELL:\$GAUDI_SETUP_PROFILE\""'
+    run call eval 'gaudi::detect_os; gaudi::detect_shell; bash -c "printf %s \"\$GAUDI_SETUP_SHELL:\$GAUDI_SETUP_PROFILE\""'
     assert_output_equals "zsh:$HOME/.zshrc"
 }
 
@@ -370,7 +365,7 @@ detected_os() {
 }
 
 @test "install_cli links the CLI and adds the bin directory to the profile" {
-    run call eval 'get_os; get_shell_type; gaudi::install_cli'
+    run call eval 'gaudi::detect_os; gaudi::detect_shell; gaudi::install_cli'
     assert_success
     [[ -L "$HOME/.local/bin/gaudi" ]]
     assert_equal "$(readlink "$HOME/.local/bin/gaudi")" "$GAUDI_ROOT/bin/gaudi"
@@ -381,22 +376,22 @@ detected_os() {
 
 @test "install_cli leaves the profile alone when the bin directory is already on PATH" {
     export PATH="$PATH:$HOME/.local/bin"
-    run call eval 'get_os; get_shell_type; gaudi::install_cli'
+    run call eval 'gaudi::detect_os; gaudi::detect_shell; gaudi::install_cli'
     assert_success
     refute_file_exists "$HOME/.zshrc"
     refute_output_contains "was added to"
 }
 
 @test "install_cli is idempotent" {
-    call eval 'get_os; get_shell_type; gaudi::install_cli' >/dev/null 2>&1
-    call eval 'get_os; get_shell_type; gaudi::install_cli' >/dev/null 2>&1
+    call eval 'gaudi::detect_os; gaudi::detect_shell; gaudi::install_cli' >/dev/null 2>&1
+    call eval 'gaudi::detect_os; gaudi::detect_shell; gaudi::install_cli' >/dev/null 2>&1
     assert_equal "$(count_in_file "$HOME/.zshrc" ".local/bin")" "1"
     [[ -L "$HOME/.local/bin/gaudi" ]]
 }
 
 @test "install_cli installs into GAUDI_BIN_DIR and writes fish syntax for fish" {
     export GAUDI_BIN_DIR="$SANDBOX/tools" GAUDI_TARGET_SHELL="fish"
-    run call eval 'get_os; get_shell_type; gaudi::install_cli'
+    run call eval 'gaudi::detect_os; gaudi::detect_shell; gaudi::install_cli'
     assert_success
     [[ -L "$SANDBOX/tools/gaudi" ]]
     assert_file_contains "$HOME/.config/fish/config.fish" "set -gx PATH \"$SANDBOX/tools\""
@@ -404,23 +399,12 @@ detected_os() {
 
 # --- Homebrew activation ---------------------------------------------------------------
 
-@test "brew_bin finds brew on PATH" {
-    run call gaudi::brew_bin
-    assert_output_equals "$FAKEBIN/brew"
-}
-
-@test "brew_bin fails when Homebrew is not installed" {
-    remove_tool brew
-    run call gaudi::brew_bin
-    assert_failure
-}
-
 @test "activate_brew loads brew into the shell and persists it in the profile" {
     remove_tool brew
     mkdir -p "$FAKE_BREW_PREFIX/bin"
     cp "$FAKES_DIR/brew" "$FAKE_BREW_PREFIX/bin/brew"
 
-    run call eval 'get_os; get_shell_type; gaudi::activate_brew; printf "%s\n" "$HOMEBREW_PREFIX"; type -P brew'
+    run call eval 'gaudi::detect_os; gaudi::detect_shell; gaudi::activate_brew; printf "%s\n" "$HOMEBREW_PREFIX"; type -P brew'
     assert_success
     assert_output_contains "$FAKE_BREW_PREFIX"
     assert_output_contains "$FAKE_BREW_PREFIX/bin/brew"
@@ -429,20 +413,20 @@ detected_os() {
 
 @test "activate_brew writes fish syntax for fish" {
     export GAUDI_TARGET_SHELL="fish"
-    run call eval 'get_os; get_shell_type; gaudi::activate_brew'
+    run call eval 'gaudi::detect_os; gaudi::detect_shell; gaudi::activate_brew'
     assert_success
     assert_file_contains "$HOME/.config/fish/config.fish" "$FAKEBIN/brew shellenv fish | source"
 }
 
 @test "activate_brew does not duplicate the profile line" {
-    call eval 'get_os; get_shell_type; gaudi::activate_brew'
-    call eval 'get_os; get_shell_type; gaudi::activate_brew'
+    call eval 'gaudi::detect_os; gaudi::detect_shell; gaudi::activate_brew'
+    call eval 'gaudi::detect_os; gaudi::detect_shell; gaudi::activate_brew'
     assert_equal "$(count_in_file "$HOME/.zshrc" "brew shellenv")" "1"
 }
 
 @test "activate_brew fails when Homebrew is not installed" {
     remove_tool brew
-    run call eval 'get_os; get_shell_type; gaudi::activate_brew'
+    run call eval 'gaudi::detect_os; gaudi::detect_shell; gaudi::activate_brew'
     assert_failure
     refute_file_exists "$HOME/.zshrc"
 }
@@ -871,4 +855,58 @@ function-kept"
     assert_failure 1
     assert_output_contains "This step needs root: install sudo or run Gaudi as root"
     refute_called "apt-get"
+}
+
+# --- the names from before the gaudi:: prefix ------------------------------------------
+
+@test "get_os, get_shell_type and command_exists still work under their old names" {
+    run call eval 'get_os; get_shell_type; printf "%s|%s" "$OS" "$GAUDI_SETUP_SHELL"'
+    assert_success
+    assert_output_equals "osx|zsh"
+    run call command_exists brew
+    assert_success
+    run call command_exists definitely-not-installed
+    assert_failure
+}
+
+# --- hooks of one Brewfile ---------------------------------------------------------------
+
+@test "run_bundle_hooks runs the Brewfile's own hook, then its topic hooks, and names them in a dry run" {
+    export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates"
+    printf 'brew "jq"\n' | write_file "$GAUDI_TEMPLATES_LOCATION/lists/core.Brewfile"
+    printf 'printf "hook core\\n" >> "$MACHINE/calls.log"\n' | write_file "$GAUDI_TEMPLATES_LOCATION/hooks/pre.bundle-core.hooks.sh"
+    printf 'printf "hook core.asdf\\n" >> "$MACHINE/calls.log"\n' | write_file "$GAUDI_TEMPLATES_LOCATION/hooks/a/pre.bundle-core.asdf.hooks.sh"
+    printf 'printf "hook post\\n" >> "$MACHINE/calls.log"\n' | write_file "$GAUDI_TEMPLATES_LOCATION/hooks/post.bundle-core.hooks.sh"
+
+    run call gaudi::run_bundle_hooks pre core
+    assert_success
+    assert_equal "$(calls | grep '^hook')" "hook core
+hook core.asdf"
+
+    export GAUDI_DRY_RUN="true"
+    run call gaudi::run_bundle_hooks post core
+    assert_output_equals "DRY RUN: hook $GAUDI_TEMPLATES_LOCATION/hooks/post.bundle-core.hooks.sh"
+    refute_called "hook post"
+}
+
+@test "run_hook runs one hook and records its failure with the reason" {
+    printf 'printf "hook ran\\n" >> "$MACHINE/calls.log"\nfalse\n' | write_file "$SANDBOX/broken.hooks.sh"
+    export HOOK="$SANDBOX/broken.hooks.sh"
+
+    run call eval 'gaudi::run_hook "$HOOK"; gaudi::report_failures'
+    assert_failure 1
+    assert_called "hook ran"
+    assert_output_contains "Running hook: $HOOK"
+    assert_output_contains "hook $HOOK: line 2 failed with status 1"
+}
+
+@test "guarded with a function calls that function instead of sourcing the file, and reports where it failed" {
+    printf 'work() {\n    printf "called\\n"\n    false\n    printf "still running\\n"\n}\n' | write_file "$SANDBOX/steps.sh"
+    export FILE="$SANDBOX/steps.sh"
+
+    run call eval 'source "$FILE"; gaudi::guarded "$FILE" work; printf "[%s]" "$gaudi_guarded_failure"'
+    assert_success
+    assert_output_contains "called"
+    assert_output_contains "still running"
+    [[ "$output" == *"[line 3 failed with status 1]" || "$output" == *"[a command in work() failed with status 1]" ]]
 }

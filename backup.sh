@@ -8,11 +8,42 @@ source "$SOURCE_LOCATION/bin/colors.sh"
 # shellcheck source=/dev/null
 source "$SOURCE_LOCATION/bin/helpers.sh"
 # shellcheck source=/dev/null
+source "$SOURCE_LOCATION/bin/templates.sh"
+# shellcheck source=/dev/null
 source "$SOURCE_LOCATION/bin/commands.sh"
 
-BACKUP_DIR="${1:-$PWD/backup}"
+usage() {
+    printf "Usage: gaudi backup [output-dir]\n"
+}
+
+BACKUP_DIR=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --)
+            # Everything after -- is a directory, even one that starts with a dash
+            shift
+            [[ $# -eq 0 ]] || BACKUP_DIR="$1"
+            ;;
+        -*)
+            printf "Unknown option: %s\n" "$1" >&2
+            usage >&2
+            exit 64
+            ;;
+        *)
+            BACKUP_DIR="$1"
+            ;;
+    esac
+    [[ $# -eq 0 ]] || shift
+done
+BACKUP_DIR="${BACKUP_DIR:-$PWD/backup}"
+# An absolute path can never be taken for an option by the tools below
+[[ "$BACKUP_DIR" == /* ]] || BACKUP_DIR="$PWD/$BACKUP_DIR"
 GAUDI_TEMPLATES_LOCATION="${GAUDI_TEMPLATES_LOCATION:-${GAUDI:-$SOURCE_LOCATION}/templates}"
-mkdir -p "$BACKUP_DIR"
+mkdir -p -- "$BACKUP_DIR"
 
 # Write a Gaudi list file from package names on stdin.
 #   write_list <file> <array name>
@@ -149,24 +180,24 @@ backup_gem() {
 
 # Copy the files named in the templates' dotfiles.list (paths relative to the
 # home directory, one per line) into <backup>/dotfiles, keeping their layout.
+# A symlink is backed up as the file or directory it points to: the link
+# itself would only mean something on this machine.
 backup_dotfiles() {
     local list=""
     local entry=""
     local path=""
+    local line_number=""
+    local target=""
     local copied=0
 
-    [[ -d "$GAUDI_TEMPLATES_LOCATION" ]] && list="$(find "$GAUDI_TEMPLATES_LOCATION" -type f -name "dotfiles.list" -print | sort | head -n 1)"
+    list="$(gaudi::dotfiles_lists | head -n 1)"
     if [[ -z "$list" ]]; then
         gaudi::log "No dotfiles.list in the templates: no dotfiles backed up"
         return 0
     fi
 
-    while IFS= read -r entry || [[ -n "$entry" ]]; do
-        entry="${entry%%#*}"
-        entry="${entry#"${entry%%[![:space:]]*}"}"
-        entry="${entry%"${entry##*[![:space:]]}"}"
-        [[ -n "$entry" ]] || continue
-
+    # shellcheck disable=SC2034  # the line number is only needed by gaudi check
+    while IFS=$'\t' read -r line_number entry; do
         if ! path="$(gaudi::dotfile_path "$entry")"; then
             gaudi::warn "Skipping '$entry' in $list: paths must be inside the home directory"
             continue
@@ -176,24 +207,35 @@ backup_dotfiles() {
             gaudi::warn "Skipping '$entry': not found in $HOME"
             continue
         fi
+        # cp -H below follows a symlinked entry. A link to a directory is only
+        # followed to somewhere inside the home directory, never to the home
+        # directory itself or out of it.
+        if [[ -L "$HOME/$entry" && -d "$HOME/$entry" ]]; then
+            target="$(cd -P -- "$HOME/$entry" 2>/dev/null && pwd)" || target=""
+            if [[ -z "$target" || "$target" != "$(cd -P -- "$HOME" && pwd)"/* ]]; then
+                gaudi::warn "Skipping '$entry': it is a symlink to a directory outside the home directory"
+                continue
+            fi
+        fi
 
         mkdir -p "$BACKUP_DIR/dotfiles/$(dirname "$entry")"
         rm -rf "$BACKUP_DIR/dotfiles/${entry:?}"
-        cp -R "$HOME/$entry" "$BACKUP_DIR/dotfiles/$entry" || gaudi::record_failure "copying $entry"
-        copied=$((copied + 1))
-    done < "$list"
+        if cp -RH "$HOME/$entry" "$BACKUP_DIR/dotfiles/$entry"; then
+            copied=$((copied + 1))
+        else
+            gaudi::record_failure "copying $entry"
+        fi
+    done < <(gaudi::dotfiles_list_entries "$list")
 
     gaudi::success "Copied $copied dotfile(s) to $BACKUP_DIR/dotfiles"
 }
 
 gaudi::log "Writing backup to $BACKUP_DIR"
 
-get_os
-default_managers="bundle gem dotfiles"
-[[ "${OS:-}" == "debian" ]] && default_managers="bundle apt gem dotfiles"
-[[ "${OS:-}" == "fedora" ]] && default_managers="bundle dnf gem dotfiles"
-[[ "${OS:-}" == "arch" ]] && default_managers="bundle pacman gem dotfiles"
-[[ "${OS:-}" == "opensuse" ]] && default_managers="bundle zypper gem dotfiles"
+gaudi::detect_os
+# The Brewfile, this operating system's own package manager (none on macOS),
+# gems and dotfiles
+default_managers="bundle $(gaudi::os_list_type) gem dotfiles"
 
 for manager in ${GAUDI_BACKUP_MANAGERS:-$default_managers}; do
     case "$manager" in

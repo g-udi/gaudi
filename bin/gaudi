@@ -31,6 +31,8 @@ export GAUDI
 source "$GAUDI/bin/colors.sh"
 # shellcheck source=/dev/null
 source "$GAUDI/bin/helpers.sh"
+# shellcheck source=/dev/null
+source "$GAUDI/bin/templates.sh"
 
 usage() {
     cat <<'USAGE'
@@ -51,8 +53,8 @@ doctor() {
     local brewfiles=0
     local status=0
 
-    get_os
-    get_shell_type
+    gaudi::detect_os
+    gaudi::detect_shell
     gaudi::log "Gaudi: $GAUDI"
     gaudi::log "OS: ${OS:-unknown}"
     gaudi::log "Shell: ${GAUDI_SETUP_SHELL:-unknown} (${GAUDI_SETUP_PROFILE:-no profile})"
@@ -72,7 +74,7 @@ doctor() {
     fi
 
     if [[ -d "$templates" ]]; then
-        brewfiles="$(find "$templates" -type f \( -name "Brewfile" -o -name "*.Brewfile" \) -print | wc -l | tr -d ' ')"
+        brewfiles="$(gaudi::brewfiles "$templates" | wc -l | tr -d ' ')"
         gaudi::log "Brewfiles found: $brewfiles"
     else
         gaudi::warn "Templates are not cloned yet: run gaudi setup"

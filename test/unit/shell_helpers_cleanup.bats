@@ -23,7 +23,7 @@ helper_repository() {
     printf '#!/usr/bin/env bash\nprintf "gaudi-shell-setup %%s\\n" "$*" >> "$MACHINE/calls.log"\n[ -z "${FAKE_HELPER_SETUP_FAIL:-}" ]\n' > "$repo/setup.sh"
     chmod +x "$repo/setup.sh"
     init_git_repo "$repo"
-    export GAUDI_HELPER_REPO_URL="$repo"
+    export GAUDI_GSHELL_REPO_URL="$repo"
 }
 
 @test "shell helpers: the detected shell is shown" {
@@ -88,7 +88,7 @@ helper_repository() {
 }
 
 @test "shell helpers: a gaudi-shell that cannot be cloned is recorded" {
-    export GAUDI_HELPER_REPO_URL="$SANDBOX/remotes/missing" GAUDI_ASSUME_YES="true"
+    export GAUDI_GSHELL_REPO_URL="$SANDBOX/remotes/missing" GAUDI_ASSUME_YES="true"
     run helpers_step
     assert_failure 1
     assert_output_contains "gaudi-shell installation (clone)"
@@ -237,4 +237,32 @@ helper_repository() {
     run step lib/opensuse/cleanup.sh
     assert_failure 1
     assert_output_contains "zypper cache cleanup"
+}
+
+@test "shell helpers: on a colour terminal the banner is coloured, not printed as escape text" {
+    require_terminal
+    run on_terminal "n" env TERM=xterm-256color bash "$GAUDI_ROOT/test/support/step" lib/install-shell-helpers.sh
+    assert_success
+    assert_output_contains "Shell helpers"
+    assert_output_contains "$(printf '\033[0;33mShell helpers\033[0m')"
+    refute_output_contains '\033'
+}
+
+@test "shell helpers: GAUDI_HELPER_REPO_URL, the older name of GAUDI_GSHELL_REPO_URL, still works" {
+    helper_repository
+    export GAUDI_HELPER_REPO_URL="$GAUDI_GSHELL_REPO_URL" GAUDI_ASSUME_YES="true" SHELL="/bin/bash"
+    unset GAUDI_GSHELL_REPO_URL
+
+    run helpers_step
+    assert_success
+    assert_file_exists "$HOME/.gaudi-shell/setup.sh"
+}
+
+@test "shell helpers: GAUDI_GSHELL_REPO_URL wins over the older name" {
+    helper_repository
+    export GAUDI_HELPER_REPO_URL="$SANDBOX/remotes/missing" GAUDI_ASSUME_YES="true" SHELL="/bin/bash"
+
+    run helpers_step
+    assert_success
+    assert_file_exists "$HOME/.gaudi-shell/setup.sh"
 }

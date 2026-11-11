@@ -13,6 +13,9 @@ on:
 permissions:
   contents: read
 
+# Actions are pinned to a commit, with the release it belongs to in a comment:
+# a tag such as v4 can be moved to different code, a commit cannot.
+
 # A newer push to the same branch or pull request replaces the run in progress
 concurrency:
   group: tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -24,17 +27,29 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        # ubuntu-24.04 rather than ubuntu-latest: pinned so the image does not change under the tests
+        os: [macos-latest, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Install bats and ShellCheck (macOS)
         if: runner.os == 'macOS'
         run: brew install bats-core shellcheck
       - name: Install bats and ShellCheck (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y bats shellcheck
+        run: |
+          # Install only what the runner image lacks, and retry: the package mirrors
+          # fail to resolve now and then.
+          missing=""
+          for tool in bats shellcheck; do command -v "$tool" > /dev/null 2>&1 || missing="$missing $tool"; done
+          [ -n "$missing" ] || exit 0
+          for attempt in 1 2 3 4 5; do
+            # shellcheck disable=SC2086
+            sudo apt-get update && sudo apt-get install -y $missing && break
+            if [ "$attempt" = 5 ]; then exit 1; fi
+            echo "apt failed (attempt $attempt), retrying in 20 seconds"; sleep 20
+          done
       # --every-bash also runs the suite under /bin/bash, which is 3.2 on macOS
       - name: Run the suite
         run: test/run --every-bash
@@ -44,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Install, back up, remove and restore real packages on Debian, Fedora, openSUSE and Arch
         run: test/run real
 
@@ -53,7 +68,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Install, back up, remove and restore a real formula
         run: GAUDI_E2E_REAL_MACOS=1 test/real/macos.sh
 

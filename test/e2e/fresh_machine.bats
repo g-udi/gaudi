@@ -22,7 +22,7 @@ publish_repositories() {
     printf '#!/usr/bin/env bash\nprintf "gaudi-shell-setup %%s\\n" "$*" >> "$MACHINE/calls.log"\n' > "$HELPER_REMOTE/setup.sh"
     chmod +x "$HELPER_REMOTE/setup.sh"
     init_git_repo "$HELPER_REMOTE"
-    export GAUDI_HELPER_REPO_URL="$HELPER_REMOTE"
+    export GAUDI_GSHELL_REPO_URL="$HELPER_REMOTE"
 }
 
 fresh_mac() {
@@ -222,7 +222,7 @@ shared-config"
     assert_success
     assert_output_contains "DRY RUN: brew bundle install --file=$GAUDI_TEMPLATES_LOCATION/lists/core.Brewfile"
     assert_output_contains "DRY RUN: hook $GAUDI_TEMPLATES_LOCATION/hooks/pre.bundle.hooks.sh"
-    assert_output_contains "DRY RUN: gem_install_or_update install tmuxinator"
+    assert_output_contains "DRY RUN: gaudi::gem_install tmuxinator"
     assert_output_contains "DRY RUN: config $GAUDI_TEMPLATES_LOCATION/configs/finder_pathbar.configs.osx.sh"
     assert_equal "$(machine_snapshot)" ""
     refute_file_exists "$MACHINE/hooks.log"

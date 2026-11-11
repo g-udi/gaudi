@@ -12,7 +12,7 @@ set -euo pipefail
 SOURCE_LOCATION="${GAUDI_ROOT:?GAUDI_ROOT must point at the checkout under test}"
 export SOURCE_LOCATION
 
-for library in colors helpers commands installer; do
+for library in colors helpers templates commands installer; do
     # shellcheck source=/dev/null
     source "$SOURCE_LOCATION/bin/$library.sh"
 done

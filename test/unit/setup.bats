@@ -22,14 +22,15 @@ stub_stages() {
     local os=""
 
     for os in osx debian fedora arch opensuse; do
-        stage "lib/$os/install-pre-requisits.sh" "prereqs($os)"
-        stage "lib/$os/configure.sh" "configs($os)"
+        stage "lib/$os/install-prerequisites.sh" "prereqs($os)"
         stage "lib/$os/cleanup.sh" "cleanup($os)"
     done
     stage "configs/configure-ssh.sh" "ssh"
     stage "configs/configure-gaudi.sh" "templates"
     stage "lib/install-shell-helpers.sh" "shell-helpers"
     stage "lib/install-software.sh" "software"
+    # One step for every OS: the stub names the OS it ran for
+    printf 'printf "STAGE:configs(%%s) yes=%%s\\n" "$OS" "${GAUDI_ASSUME_YES}"\n' > "$COPY/lib/install-configurations.sh"
     stage "lib/install-dotfiles.sh" "dotfiles"
 }
 

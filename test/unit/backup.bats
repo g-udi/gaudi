@@ -300,3 +300,57 @@ zypperList=(
     assert_output_contains "Skipping pacman backup: pacman is not available"
     assert_output_contains "Skipping zypper backup: zypper is not available"
 }
+
+# --- a package manager that cannot be queried ----------------------------------------
+
+@test "Debian: a failing apt query is reported and the rest of the backup still happens" {
+    gaudi_sandbox debian
+    add_tool brew
+    installed brew/brew.txt "jq"
+    printf 'tmuxinator\n' > "$MACHINE/gem.txt"
+    printf 'x\n' | write_file "$HOME/.zshrc"
+    export GAUDI_TEMPLATES_LOCATION="$SANDBOX/templates"
+    printf '.zshrc\n' | write_file "$GAUDI_TEMPLATES_LOCATION/dotfiles.list"
+    export FAKE_QUERY_FAIL=1
+
+    run "$CLI" backup "$SANDBOX/out"
+    assert_failure 1
+    assert_output_contains "1 step(s) failed"
+    assert_output_contains "apt backup: apt-mark showmanual"
+    refute_output_contains "Backup complete"
+    # No list that would pass for a machine without packages
+    refute_file_exists "$SANDBOX/out/default.apt.list.sh"
+    # Everything after apt was still backed up
+    assert_file_contains "$SANDBOX/out/Brewfile" 'brew "jq"'
+    assert_file_contains "$SANDBOX/out/default.gem.list.sh" '"tmuxinator"'
+    assert_file_exists "$SANDBOX/out/dotfiles/.zshrc"
+}
+
+@test "Fedora, Arch and openSUSE: a failing package query is reported the same way" {
+    for os in fedora arch opensuse; do
+        gaudi_sandbox "$os"
+        printf 'tmuxinator\n' > "$MACHINE/gem.txt"
+        export FAKE_QUERY_FAIL=1
+
+        run "$CLI" backup "$SANDBOX/out-$os"
+        assert_failure 1
+        assert_output_contains "1 step(s) failed"
+        assert_output_contains " backup: "
+        assert_equal "$(ls -A "$SANDBOX/out-$os")" "default.gem.list.sh"
+    done
+    assert_output_contains "zypper backup: zypper packages --userinstalled"
+}
+
+@test "a manager that fails in any other way is recorded and the next one still runs" {
+    # The output directory cannot be written to: the gem list fails, dotfiles are still tried
+    printf 'tmuxinator\n' > "$MACHINE/gem.txt"
+    export GAUDI_BACKUP_MANAGERS="gem dotfiles"
+    mkdir -p "$SANDBOX/out"
+    mkdir "$SANDBOX/out/default.gem.list.sh"
+
+    run "$CLI" backup "$SANDBOX/out"
+    assert_failure 1
+    assert_output_contains "Failed: gem backup"
+    assert_output_contains "No dotfiles.list in the templates"
+    assert_output_contains "1 step(s) failed"
+}

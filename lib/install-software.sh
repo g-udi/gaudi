@@ -158,10 +158,11 @@ gaudi::install_list_file() {
     [[ -n "$list_description" ]] && printf "%b\n" "${MAGENTA:-}$list_description${NC:-}"
     gaudi::confirm "Proceed with this list?" "n" || return 0
 
-    gaudi::source_guarded "$list_file" || {
-        gaudi::record_failure "list $list_file"
+    gaudi::source_guarded "$list_file"
+    if [[ -n "$gaudi_guarded_failure" ]]; then
+        gaudi::record_failure "list $list_file: $gaudi_guarded_failure"
         return 0
-    }
+    fi
     list_ref="${list_name}[@]"
 
     if ! declare -p "$list_name" >/dev/null 2>&1; then

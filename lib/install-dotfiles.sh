@@ -42,7 +42,11 @@ gaudi::restore_dotfile() {
 gaudi_dotfiles_changed=0
 while IFS= read -r gaudi_dotfile; do
     [[ -n "$gaudi_dotfile" ]] || continue
-    gaudi_dotfile_target="$HOME/${gaudi_dotfile#"$gaudi_dotfiles_dir"/}"
+    if ! gaudi_dotfile_path="$(gaudi::dotfile_path "${gaudi_dotfile#"$gaudi_dotfiles_dir"/}")"; then
+        gaudi::warn "Skipping $gaudi_dotfile: it would not be restored inside the home directory"
+        continue
+    fi
+    gaudi_dotfile_target="$HOME/$gaudi_dotfile_path"
     if gaudi::dotfile_differs "$gaudi_dotfile" "$gaudi_dotfile_target"; then
         gaudi_dotfiles_changed=$((gaudi_dotfiles_changed + 1))
         if [[ -e "$gaudi_dotfile_target" ]]; then
@@ -62,7 +66,8 @@ gaudi::confirm "Restore these $gaudi_dotfiles_changed dotfile(s) into $HOME?" "n
 
 while IFS= read -r gaudi_dotfile; do
     [[ -n "$gaudi_dotfile" ]] || continue
-    gaudi_dotfile_target="$HOME/${gaudi_dotfile#"$gaudi_dotfiles_dir"/}"
+    gaudi_dotfile_path="$(gaudi::dotfile_path "${gaudi_dotfile#"$gaudi_dotfiles_dir"/}")" || continue
+    gaudi_dotfile_target="$HOME/$gaudi_dotfile_path"
     gaudi::dotfile_differs "$gaudi_dotfile" "$gaudi_dotfile_target" || continue
     gaudi::restore_dotfile "$gaudi_dotfile" "$gaudi_dotfile_target" \
         || gaudi::record_failure "dotfile $gaudi_dotfile_target"

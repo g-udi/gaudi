@@ -18,10 +18,11 @@ gaudi::run_configuration() {
     unset _info
     unset -f _command 2>/dev/null || true
 
-    gaudi::source_guarded "$config_file" || {
-        gaudi::record_failure "config $config_file"
+    gaudi::source_guarded "$config_file"
+    if [[ -n "$gaudi_guarded_failure" ]]; then
+        gaudi::record_failure "config $config_file: $gaudi_guarded_failure"
         return 0
-    }
+    fi
 
     if ! declare -F _command >/dev/null 2>&1; then
         gaudi::warn "Skipping $config_file: _command function is missing"
@@ -41,7 +42,8 @@ gaudi::run_configuration() {
         return 0
     fi
 
-    _command || gaudi::record_failure "config ${_info}"
+    gaudi::call_guarded "$config_file" _command
+    [[ -z "$gaudi_guarded_failure" ]] || gaudi::record_failure "config ${_info}: $gaudi_guarded_failure"
 }
 
 if [[ ! -d "$GAUDI_TEMPLATES_LOCATION" ]]; then

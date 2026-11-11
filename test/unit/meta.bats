@@ -146,7 +146,10 @@ test_files() {
     # `while read ...; done < <(...)` steals the keyboard from prompts inside
     # the loop. Loops in the steps that prompt must use their own descriptor.
     for file in lib/install-configurations.sh configs/configure-gaudi.sh; do
-        ! grep -nE 'done < <\(' "$file"
+        if grep -nE 'done < <\(' "$file"; then
+            echo "reads its list from stdin: $file"
+            return 1
+        fi
     done
     grep -q 'done 3< <(gaudi::brewfiles)' lib/install-software.sh
     grep -q 'done 4< <(find' bin/helpers.sh

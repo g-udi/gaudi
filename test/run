@@ -27,9 +27,7 @@ find_bats() {
     for candidate in \
         "${BATS:-}" \
         "$(type -P bats 2>/dev/null || true)" \
-        "$TEST_DIR/deps/bats-core/bin/bats" \
-        "$ROOT_DIR/../gaudi-shell/bin/bats-core/bin/bats" \
-        "$ROOT_DIR/../gaudi-bash/bin/bats-core/bin/bats"; do
+        "$ROOT_DIR/../gaudi-shell/bin/bats-core/bin/bats"; do
         if [[ -n "$candidate" && -x "$candidate" ]]; then
             printf "%s" "$candidate"
             return 0

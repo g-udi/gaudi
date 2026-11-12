@@ -124,10 +124,10 @@ Setup links a `gaudi` command into `${GAUDI_BIN_DIR:-$HOME/.local/bin}` and adds
 | Command | What it does |
 | --- | --- |
 | `gaudi setup [flags]` | Run the setup again |
-| `gaudi backup [output-dir]` | Capture the installed software (default: `./backup`); `--help` prints the usage |
-| `gaudi check [templates-dir] [--online]` | Check a templates directory for things that will not work; changes nothing |
+| `gaudi backup [output-dir]` | Capture the installed software (default: `./backup`); `--help` prints the usage, and a second directory is refused |
+| `gaudi check [templates-dir] [--online]` | Check a templates directory for things that will not work; changes nothing in it |
 | `gaudi doctor` | Show the install location, OS, shell, templates and whether Git and Homebrew are available; changes nothing |
-| `gaudi version` | Print the installed version |
+| `gaudi version` | Print the installed version as Git describes the checkout: a tag-based name in a full clone, the commit in the shallow clone the installer makes |
 | `gaudi help` | Print the usage |
 
 Setup flags:
@@ -321,6 +321,8 @@ Hooks are shell scripts in the templates that Gaudi sources around the software 
 | `pre.bundle-<name>.<topic>.hooks.sh` / `post.bundle-<name>.<topic>.hooks.sh` | Same, when one Brewfile needs several hooks |
 | `pre.apt.hooks.sh`, `pre.dnf.hooks.sh`, `post.pacman.hooks.sh`, `post.gem.hooks.sh`, ... | Around the apt, dnf, pacman, zypper and gem lists |
 
+The list hooks run whenever that package manager is on the machine: before the first list is offered and after the last one, also when a list is declined or the templates have no list of that type (`gem` exists on every Mac, so a `pre.gem.hooks.sh` runs on every macOS setup). A hook that should only act for an accepted list asks first, with `gaudi::confirm`.
+
 A file named plain `Brewfile` goes by the name `default`, so its hooks are `pre.bundle-default.hooks.sh` and `post.bundle-default.hooks.sh`. When one Brewfile name starts with another (`dev.Brewfile` and `dev.tools.Brewfile`), a hook belongs to the longest name it matches: `pre.bundle-dev.tools.hooks.sh` runs for `dev.tools` only.
 
 Hooks run inside the setup, so they can use its helpers: `gaudi::command_exists <tool>` (also available as `command_exists`), `gaudi::confirm "Question?" "n"` (which follows `--yes` and the no-terminal defaults), and `gaudi::record_failure "what failed"` to report a problem in the final summary. The colours `$RED`, `$GREEN`, `$YELLOW`, `$BLUE`, `$MAGENTA` and `$NC` (reset) are set for `printf "%b"`, and empty when the output is not a colour terminal. What a hook exports (variables, `PATH`) reaches the steps after it.
@@ -376,7 +378,7 @@ gaudi check ./my-templates
 gaudi check --online       # also ask Homebrew whether every formula and cask still exists
 ```
 
-`gaudi check` reads a templates directory and reports what would not work, without changing anything:
+`gaudi check` reads a templates directory and reports what would not work, without changing anything in it:
 
 - a Brewfile that Homebrew cannot read, or a `mas` entry without its id
 - a hook or configuration script whose file name means it never runs (a typo, a Brewfile that does not exist, an unknown OS)
@@ -385,6 +387,8 @@ gaudi check --online       # also ask Homebrew whether every formula and cask st
 - `dotfiles.list` entries that are the home directory itself or point outside it
 
 It exits 1 when it finds errors, so it can guard a templates repository in CI; the [default templates](https://github.com/g-udi/gaudi-templates) do exactly that. With `--online` it also reports formulae and casks that Homebrew has removed, disabled or deprecated (one lookup per package, so it is slow).
+
+Two kinds of file are read by running them: a list file is sourced in a subshell, exactly as setup reads it, and Homebrew evaluates a Brewfile, which is Ruby. Hooks and configuration scripts are only parsed, never run. So check templates from a source you would also let set up the machine. File names are matched as setup finds them, whatever their case.
 
 ## Behind the Scenes
 
@@ -442,7 +446,7 @@ The suite is written with [bats-core](https://github.com/bats-core/bats-core). T
 | `e2e` | The real `install.sh`, `setup.sh` and `gaudi backup` on simulated machines: a fresh Mac, Debian, Fedora, Arch and openSUSE from the one-line installer, backup on one machine and restore on another, failures and reruns |
 | `real` | Nothing simulated: Debian, Fedora, openSUSE and Arch containers where the real `apt`, `dnf`, `zypper` and `pacman` install packages, and packages and dotfiles are backed up, removed and restored, first as root and then as a regular user through `sudo`. Without Docker the run is skipped, except in CI, where that is a failure. `test/real/macos.sh` does the same with the real Homebrew and only runs in CI or with `GAUDI_E2E_REAL_MACOS=1` |
 
-Unit and end-to-end tests never touch the machine they run on. Each test gets a throwaway home directory and a `PATH` that holds only fake tools (`test/fakes`: brew, apt, sudo, curl, ssh-keygen, ...) and a whitelist of coreutils. The fake package managers record what they "install", which is how a restored machine is compared with the one that was backed up.
+Unit and end-to-end tests never touch the machine they run on. Each test gets a throwaway home directory and a `PATH` that holds only fake tools (`test/fakes`: brew, apt, sudo, curl, ssh-keygen, ...) and a whitelist of coreutils. The fake package managers record what they "install", which is how a restored machine is compared with the one that was backed up. The suite needs no network: Git is limited to repositories on the local disk (`GIT_ALLOW_PROTOCOL=file`), and Gaudi, the templates and gaudi-shell with its submodules are cloned from stand-ins the tests create.
 
 ### Continuous integration
 

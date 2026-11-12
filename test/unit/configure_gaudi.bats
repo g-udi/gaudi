@@ -118,10 +118,6 @@ publish() {
 }
 
 @test "the templates location is exported for the following steps" {
-    printf 'printf "location=%%s\\n" "$(bash -c "printf %%s \"\\$GAUDI_TEMPLATES_LOCATION\"")"\n' > "$SANDBOX/probe.sh"
-    cp "$SANDBOX/probe.sh" "$GAUDI_ROOT/../.gaudi-probe-$$.sh" 2>/dev/null || true
-    rm -f "$GAUDI_ROOT/../.gaudi-probe-$$.sh"
-
     run call eval 'gaudi::detect_os; gaudi::detect_shell; source "$SOURCE_LOCATION/configs/configure-gaudi.sh" </dev/null >/dev/null 2>&1; bash -c "printf %s \"\$GAUDI_TEMPLATES_LOCATION\""'
     assert_success
     assert_output_equals "$GAUDI_TEMPLATES_LOCATION"

@@ -17,7 +17,8 @@ Detected shell: ${GAUDI_SETUP_SHELL:-unknown}
 
 EOF
 
-# gaudi-shell is installed the way its README says: clone, then run its setup.
+# gaudi-shell is installed the way its README says: clone, fetch its
+# components, then run its setup.
 gaudi::install_gaudi_shell() {
     local target="$HOME/.gaudi-shell"
     local -a setup_args=(--silent)
@@ -41,6 +42,16 @@ gaudi::install_gaudi_shell() {
 
     if ! git clone --depth=1 "$GAUDI_GSHELL_REPO_URL" "$target"; then
         gaudi::record_failure "gaudi-shell installation (clone)"
+        return 0
+    fi
+
+    # gaudi-shell keeps its aliases, completions and plugins in three
+    # submodules, and its setup refuses to run without them. Only those three
+    # are fetched, as shallow as the clone. A clone without them is removed,
+    # so the next run starts again instead of finding it "already installed".
+    if ! git -C "$target" submodule update --init --depth 1 components/aliases components/completions components/plugins; then
+        rm -rf "$target"
+        gaudi::record_failure "gaudi-shell installation (components)"
         return 0
     fi
 

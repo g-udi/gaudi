@@ -47,6 +47,34 @@ file() {
     assert_failure 64
 }
 
+@test "check: a second templates directory is refused, with status 64" {
+    run check "$SANDBOX/another"
+    assert_failure 64
+    assert_output_contains "Unexpected argument: $SANDBOX/another"
+}
+
+@test "check: hooks and configs are matched whatever the case of their names, as setup finds them" {
+    printf 'brew "jq"\n' | file "lists/core.Brewfile"
+    printf 'true\n' | file "hooks/PRE.Bundle.hooks.sh"
+    printf 'true\n' | file "hooks/Post.Bundle-Core.Hooks.sh"
+    printf '_info="x"\n_command() { true; }\n' | file "configs/Shared.CONFIGS.sh"
+    printf '_info="x"\n_command() { true; }\n' | file "configs/Finder.Configs.OSX.SH"
+    run check
+    assert_success
+    assert_output_contains "Checked 5 file(s)"
+    assert_output_contains "0 error(s), 0 warning(s)"
+}
+
+@test "check: a configuration script whose name contains .<type>- is a config, not a list" {
+    printf '_info="x"\n_command() { true; }\n' | file "configs/tune.gem-home.configs.sh"
+    printf '_info="x"\n_command() { true; }\n' | file "configs/tune.apt-cache.configs.debian.sh"
+    printf '_info="x"\n_command() { true; }\n' | file "configs/old.pip-tools.configs.sh"
+    run check
+    assert_success
+    assert_output_contains "Checked 3 file(s)"
+    assert_output_contains "0 error(s), 0 warning(s)"
+}
+
 @test "check: a Brewfile Homebrew cannot read is an error" {
     printf 'brew "jq"\nINVALID ruby here\n' | file "lists/core.Brewfile"
     run check

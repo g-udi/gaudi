@@ -7,10 +7,10 @@ setup() {
     cd "$ROOT" || return 1
 }
 
-# Every shell script in the repository (templates and vendored test tools excluded)
+# Every shell script in the repository (the templates checkout excluded)
 shell_files() {
     {
-        find . -type f -name '*.sh' -not -path './templates/*' -not -path './test/deps/*' -not -path './.git/*'
+        find . -type f -name '*.sh' -not -path './templates/*' -not -path './.git/*'
         printf '%s\n' ./bin/gaudi ./test/run ./test/fakes/brew ./test/fakes/tool ./test/support/call ./test/support/step ./test/support/run-file ./test/helper.bash
     } | sort -u
 }
@@ -56,6 +56,12 @@ test_files() {
     done
 }
 
+@test "files that are only ever sourced are not executable" {
+    for file in bin/*.sh configs/*.sh lib/*.sh lib/*/*.sh test/helper.bash; do
+        [[ ! -x "$file" ]] || { echo "executable, but only sourced: $file"; return 1; }
+    done
+}
+
 @test "the pseudo-terminal helper is valid Python" {
     command -v python3 >/dev/null 2>&1 || skip "python3 is not installed"
     python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read())' test/support/pty
@@ -73,11 +79,13 @@ test_files() {
     done < <(test_files)
 }
 
+# A script counts as exercised when its path stands in the code of a test or
+# of a test driver: a mention in a comment or in a test's title is not enough.
 @test "every Gaudi script is exercised by the suite" {
     while IFS= read -r file; do
         name="${file#./}"
-        grep -rqF -- "$name" test/unit test/e2e test/support \
-            || { echo "no test mentions: $name"; return 1; }
+        grep -rhF -- "$name" test/unit test/e2e test/support | grep -vqE '^[[:space:]]*(#|@test )' \
+            || { echo "no test uses: $name"; return 1; }
     done < <(source_files)
 }
 

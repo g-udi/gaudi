@@ -18,6 +18,9 @@ All notable changes to Gaudi are recorded here. Versions follow [Semantic Versio
 - `GAUDI_GSHELL_REPO_URL` is the new name of `GAUDI_HELPER_REPO_URL`, which named the gaudi-shell repository and was easy to take for a gaudi-helper setting. The old name still works.
 - The per-OS prerequisite scripts are spelt `lib/<os>/install-prerequisites.sh`, and the five identical `lib/<os>/configure.sh` files are gone: setup sources `lib/install-configurations.sh` directly.
 - In CI the real Linux run fails when Docker is not available instead of passing with a SKIP, and the workflow's actions are pinned to a commit.
+- `gaudi backup` and `gaudi check` refuse a second directory with status 64 instead of silently using the last one. After `--`, `gaudi backup` takes anything for the directory, `--help` included.
+- Under `--yes`, `gaudi::read_answer` (and the old `read_answer`) answers `y` only when `y` is an allowed answer; otherwise it gives the default, or the first allowed character.
+- The test suite needs no network: Git is limited to local repositories, and gaudi-shell is cloned from a local stand-in with submodules.
 
 ### Added
 
@@ -32,6 +35,11 @@ All notable changes to Gaudi are recorded here. Versions follow [Semantic Versio
 
 ### Fixed
 
+- Installing gaudi-shell failed since it moved its aliases, completions and plugins into Git submodules: its setup refuses to run without them. Setup now fetches those three submodules after the clone; when that fails the failure is recorded, gaudi-shell's setup is not run, and the incomplete clone is removed so a rerun starts again.
+- `gaudi backup` reported "No user-installed gems" when Ruby failed to list them; that is now a recorded failure.
+- A configuration script whose name contains `.<type>-` (`tune.apt-cache.configs.debian.sh`) was also taken for a list of that type.
+- `gaudi check` compared hook and config file names case-sensitively while setup finds them in any case, so it reported files that do run as "never runs".
+- A dry run showed a list as "built by code" when a comment inside its array ended in `)`.
 - `gaudi backup` no longer stops halfway, without a summary, when `apt-mark`, `dnf`, `pacman` or `zypper` cannot list the installed packages. The failure is reported, no list is written for that manager, and the other managers and the dotfiles are still backed up.
 - A `dotfiles.list` entry of `.` or `./` copied the whole home directory into the backup. Backup, restore and `gaudi check` now share one rule: a path must be inside the home directory, and may not be the home directory itself or leave it through a symlinked directory.
 - A hook that ended the run outright (an unset variable, its own `set -e`) left no summary; the failures are now printed before setup exits.

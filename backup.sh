@@ -17,27 +17,39 @@ usage() {
 }
 
 BACKUP_DIR=""
+options_done="false"
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        -h|--help)
-            usage
-            exit 0
-            ;;
         --)
             # Everything after -- is a directory, even one that starts with a dash
-            shift
-            [[ $# -eq 0 ]] || BACKUP_DIR="$1"
+            if [[ "$options_done" == "false" ]]; then
+                options_done="true"
+                shift
+                continue
+            fi
+            ;;
+        -h|--help)
+            if [[ "$options_done" == "false" ]]; then
+                usage
+                exit 0
+            fi
             ;;
         -*)
-            printf "Unknown option: %s\n" "$1" >&2
-            usage >&2
-            exit 64
-            ;;
-        *)
-            BACKUP_DIR="$1"
+            if [[ "$options_done" == "false" ]]; then
+                printf "Unknown option: %s\n" "$1" >&2
+                usage >&2
+                exit 64
+            fi
             ;;
     esac
-    [[ $# -eq 0 ]] || shift
+    # One output directory: a second one is a mistake, not an override
+    if [[ -n "$BACKUP_DIR" ]]; then
+        printf "Unexpected argument: %s\n" "$1" >&2
+        usage >&2
+        exit 64
+    fi
+    BACKUP_DIR="$1"
+    shift
 done
 BACKUP_DIR="${BACKUP_DIR:-$PWD/backup}"
 # An absolute path can never be taken for an option by the tools below
@@ -169,7 +181,10 @@ backup_gem() {
 
     # Read the gemspecs in the user directory directly: asking RubyGems for
     # "all specifications" also returns the gems that ship with Ruby itself.
-    gems="$(ruby -e 'puts Dir[File.join(Gem.user_dir, "specifications", "*.gemspec")].map { |file| Gem::Specification.load(file) }.compact.map(&:name).uniq.sort' 2>/dev/null || true)"
+    if ! gems="$(ruby -e 'puts Dir[File.join(Gem.user_dir, "specifications", "*.gemspec")].map { |file| Gem::Specification.load(file) }.compact.map(&:name).uniq.sort' 2>/dev/null)"; then
+        gaudi::record_failure "gem backup: ruby could not list the user gems"
+        return 0
+    fi
     if [[ -z "$gems" ]]; then
         gaudi::log "No user-installed gems to back up"
         return 0

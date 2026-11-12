@@ -206,6 +206,16 @@ gemList=(
     refute_file_exists "$SANDBOX/out/default.gem.list.sh"
 }
 
+@test "backup records a failure when ruby cannot list the gems, instead of reporting none" {
+    printf 'tmuxinator\n' > "$MACHINE/gem.txt"
+    export GAUDI_BACKUP_MANAGERS="gem" FAKE_RUBY_FAIL=1
+    run "$CLI" backup "$SANDBOX/out"
+    assert_failure 1
+    assert_output_contains "Failed: gem backup: ruby could not list the user gems"
+    refute_output_contains "No user-installed gems to back up"
+    refute_file_exists "$SANDBOX/out/default.gem.list.sh"
+}
+
 @test "backup without ruby skips gems with a warning" {
     remove_tool ruby gem
     export GAUDI_BACKUP_MANAGERS="gem"
@@ -380,6 +390,23 @@ zypperList=(
     run "$CLI" backup -- "-odd"
     assert_success
     assert_file_contains "$WORK/-odd/Brewfile" 'brew "jq"'
+}
+
+@test "backup -- takes even --help for a directory" {
+    installed brew/brew.txt "jq"
+    run "$CLI" backup -- --help
+    assert_success
+    assert_file_contains "$WORK/--help/Brewfile" 'brew "jq"'
+}
+
+@test "backup refuses a second output directory, with status 64" {
+    run "$CLI" backup "$SANDBOX/one" "$SANDBOX/two"
+    assert_failure 64
+    assert_output_contains "Unexpected argument: $SANDBOX/two"
+    assert_output_contains "Usage: gaudi backup [output-dir]"
+    refute_file_exists "$SANDBOX/one"
+    refute_file_exists "$SANDBOX/two"
+    refute_called "brew"
 }
 
 # --- gems, with the real Ruby --------------------------------------------------------

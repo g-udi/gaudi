@@ -69,7 +69,8 @@ gaudi::brewfile_name() {
     fi
 }
 
-# Every list file of one type
+# Every list file of one type. A configuration script is never a list, even
+# when its name contains ".<type>-" (tune.apt-cache.configs.debian.sh).
 #   gaudi::list_files <type> [templates dir]
 gaudi::list_files() {
     local list_type="$1"
@@ -78,7 +79,7 @@ gaudi::list_files() {
     [[ -d "$templates" ]] || return 0
     find "$templates" -type f \
         \( -iname "*.${list_type}.list.sh" -o -iname "*.${list_type}.sh" -o -iname "*.${list_type}-*.list.sh" -o -iname "*.${list_type}-*.sh" \) \
-        ! -iname "*.hooks.sh" \
+        ! -iname "*.hooks.sh" ! -iname "*.configs.*" \
         -print | sort
 }
 
@@ -210,6 +211,8 @@ gaudi::list_items_static() {
     if [[ "$2" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
         block="$(awk -v name="$2" '
             !found && $0 ~ ("^[ \t]*(declare[ \t]+(-[A-Za-z]+[ \t]+)*)?" name "=\\(") { found = 1 }
+            # A comment line inside the array may end in ")" without closing it
+            found && /^[ \t]*#/ { print; next }
             found { print; if ($0 ~ /\)[ \t]*(#.*)?$/) exit }
         ' "$1")"
     fi

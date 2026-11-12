@@ -15,15 +15,10 @@ OH_MY_ZSH_URL="https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/in
 
 # --- shell helpers -----------------------------------------------------------------
 
-# A stand-in for the gaudi-shell repository: its setup.sh records how it was run
+# A stand-in for the gaudi-shell repository, with its component submodules
+# (see gshell_remote in test/helper.bash)
 helper_repository() {
-    local repo="$SANDBOX/remotes/gaudi-shell"
-
-    mkdir -p "$repo"
-    printf '#!/usr/bin/env bash\nprintf "gaudi-shell-setup %%s\\n" "$*" >> "$MACHINE/calls.log"\n[ -z "${FAKE_HELPER_SETUP_FAIL:-}" ]\n' > "$repo/setup.sh"
-    chmod +x "$repo/setup.sh"
-    init_git_repo "$repo"
-    export GAUDI_GSHELL_REPO_URL="$repo"
+    gshell_remote
 }
 
 @test "shell helpers: the detected shell is shown" {
@@ -93,6 +88,35 @@ helper_repository() {
     assert_failure 1
     assert_output_contains "gaudi-shell installation (clone)"
     assert_file_exists "$HOME/.oh-my-zsh"
+}
+
+@test "shell helpers: gaudi-shell's three component submodules are fetched before its setup runs" {
+    helper_repository
+    export GAUDI_ASSUME_YES="true"
+    run helpers_step
+    assert_success
+    for component in aliases completions plugins; do
+        assert_file_exists "$HOME/.gaudi-shell/components/$component/$component.bash"
+    done
+    # The stand-in setup.sh refuses to run without its components, like the real one
+    assert_called "gaudi-shell-setup --silent --shell zsh"
+}
+
+@test "shell helpers: components that cannot be fetched are recorded, setup is not run and the clone is removed" {
+    helper_repository
+    mv "$SANDBOX/remotes/gaudi-shell-plugins" "$SANDBOX/remotes/gone"
+    export GAUDI_ASSUME_YES="true"
+    run helpers_step
+    assert_failure 1
+    assert_output_contains "gaudi-shell installation (components)"
+    refute_called "gaudi-shell-setup"
+    refute_file_exists "$HOME/.gaudi-shell"
+
+    # Once the component is reachable again, the same command finishes the job
+    mv "$SANDBOX/remotes/gone" "$SANDBOX/remotes/gaudi-shell-plugins"
+    run helpers_step
+    assert_success
+    assert_called "gaudi-shell-setup --silent --shell zsh"
 }
 
 @test "shell helpers: a failing gaudi-shell setup is recorded" {

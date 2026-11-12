@@ -27,7 +27,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # ubuntu-24.04 rather than ubuntu-latest: pinned so the image does not change under the tests
+        # ubuntu-24.04 rather than ubuntu-latest, here and in the jobs below: pinned so
+        # the image does not change under the tests. macOS stays on macos-latest on
+        # purpose: a new Mac is what Gaudi sets up.
         os: [macos-latest, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
@@ -56,7 +58,7 @@ jobs:
 
   real-linux:
     name: real end-to-end (Linux containers)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -78,7 +80,7 @@ jobs:
     name: tests passed
     if: always()
     needs: [suite, real-linux, real-macos]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Check every job succeeded

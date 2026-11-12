@@ -17,12 +17,8 @@ publish_repositories() {
     export GAUDI_REPO_URL
     export GAUDI_DEFAULT_TEMPLATES_URL="$TEMPLATES_REMOTE"
 
-    HELPER_REMOTE="$SANDBOX/remotes/gaudi-shell"
-    mkdir -p "$HELPER_REMOTE"
-    printf '#!/usr/bin/env bash\nprintf "gaudi-shell-setup %%s\\n" "$*" >> "$MACHINE/calls.log"\n' > "$HELPER_REMOTE/setup.sh"
-    chmod +x "$HELPER_REMOTE/setup.sh"
-    init_git_repo "$HELPER_REMOTE"
-    export GAUDI_GSHELL_REPO_URL="$HELPER_REMOTE"
+    # gaudi-shell, with its component submodules
+    gshell_remote
 }
 
 fresh_mac() {

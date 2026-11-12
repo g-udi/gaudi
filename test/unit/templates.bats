@@ -257,6 +257,31 @@ rake
 pry"
 }
 
+@test "list_items_static: a comment inside the array that ends in ) does not end the array" {
+    template "lists/a.apt.list.sh" <<'LIST'
+# @List: aptList
+aptList=(
+  # Editors (terminal)
+  "vim"
+  # Monitors (terminal)
+  "htop"
+)
+LIST
+    run call gaudi::list_items_static "$GAUDI_TEMPLATES_LOCATION/lists/a.apt.list.sh" aptList
+    assert_success
+    assert_output_equals "ok
+vim
+htop"
+}
+
+@test "list_files leaves out configuration scripts whose name contains .<type>-" {
+    printf 'aptList=( "tree" )\n' | template "lists/default.apt-get.sh"
+    printf '_command() { true; }\n' | template "configs/tune.apt-cache.configs.debian.sh"
+    run call gaudi::list_files apt
+    assert_success
+    assert_output_equals "$GAUDI_TEMPLATES_LOCATION/lists/default.apt-get.sh"
+}
+
 @test "list_items_static: an array built by code is missing" {
     printf 'for name in tree htop; do aptList+=("$name"); done\n' | template "lists/a.apt.list.sh"
     run call gaudi::list_items_static "$GAUDI_TEMPLATES_LOCATION/lists/a.apt.list.sh" aptList

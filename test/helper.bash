@@ -82,6 +82,11 @@ gaudi_sandbox() {
     export GIT_CONFIG_NOSYSTEM=1
     export GIT_AUTHOR_NAME="Gaudi Test" GIT_AUTHOR_EMAIL="test@example.com"
     export GIT_COMMITTER_NAME="Gaudi Test" GIT_COMMITTER_EMAIL="test@example.com"
+    # The suite needs no network: Git may only reach repositories on this
+    # disk, so a test that forgets its local stand-in for GitHub fails at
+    # once instead of cloning the real thing. (This also lets the submodules
+    # of a local repository be cloned, which Git refuses by default.)
+    export GIT_ALLOW_PROTOCOL="file"
 
     # Tests must behave the same when the suite is started from a terminal:
     # without this, code that asks "is someone at the keyboard?" would say yes
@@ -208,6 +213,39 @@ init_git_repo() {
     git -C "$1" checkout -q -b main 2>/dev/null || true
     git -C "$1" add -A
     git -C "$1" commit -q -m "fixture" --allow-empty
+}
+
+# A stand-in for the gaudi-shell repository on GitHub, laid out like the real
+# one: a setup.sh, and its aliases, completions and plugins in three
+# submodules. Like the real setup.sh, the stand-in refuses to run while a
+# component is empty; otherwise it records how it was run in calls.log.
+# Exports GAUDI_GSHELL_REPO_URL.
+gshell_remote() {
+    local repo="$SANDBOX/remotes/gaudi-shell"
+    local component=""
+
+    mkdir -p "$repo"
+    cat > "$repo/setup.sh" <<'EOF'
+#!/usr/bin/env bash
+for component in aliases completions plugins; do
+    if [ -z "$(ls -A "$(dirname "$0")/components/$component" 2>/dev/null)" ]; then
+        printf "gaudi-shell: components/%s is empty\n" "$component" >&2
+        exit 1
+    fi
+done
+printf "gaudi-shell-setup %s\n" "$*" >> "$MACHINE/calls.log"
+[ -z "${FAKE_HELPER_SETUP_FAIL:-}" ]
+EOF
+    chmod +x "$repo/setup.sh"
+    init_git_repo "$repo"
+    for component in aliases completions plugins; do
+        mkdir -p "$SANDBOX/remotes/gaudi-shell-$component"
+        printf '# %s\n' "$component" > "$SANDBOX/remotes/gaudi-shell-$component/$component.bash"
+        init_git_repo "$SANDBOX/remotes/gaudi-shell-$component"
+        git -C "$repo" submodule --quiet add "$SANDBOX/remotes/gaudi-shell-$component" "components/$component" >/dev/null 2>&1
+    done
+    git -C "$repo" commit -q -m "components"
+    export GAUDI_GSHELL_REPO_URL="$repo"
 }
 
 # A git repository holding the Gaudi checkout under test, as install.sh would

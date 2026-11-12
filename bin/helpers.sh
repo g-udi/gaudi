@@ -164,8 +164,9 @@ gaudi::detect_shell() {
     export GAUDI_SETUP_SHELL GAUDI_SETUP_PROFILE
 }
 
-# Read a one-key answer. Prints "y" without asking under GAUDI_ASSUME_YES, and
-# the default (or "n") when nobody is at the keyboard.
+# Read a one-key answer. Prints "y" without asking under GAUDI_ASSUME_YES (the
+# default, or the first allowed character, when "y" is not an allowed answer),
+# and the default (or "n") when nobody is at the keyboard.
 #   gaudi::read_answer [allowed characters] [default]
 gaudi::read_answer() {
     local options="${1:-yYnN}"
@@ -173,7 +174,11 @@ gaudi::read_answer() {
     local input=""
 
     if [[ "${GAUDI_ASSUME_YES:-false}" == "true" ]]; then
-        printf "y"
+        if [[ "y" =~ ^[$options]$ ]]; then
+            printf "y"
+        else
+            printf "%s" "${default:-${options:0:1}}"
+        fi
         return 0
     fi
 

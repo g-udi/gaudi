@@ -18,6 +18,18 @@ stdout_of() { "$@" 2>/dev/null; }
     assert_output_equals "y"
 }
 
+@test "gaudi::read_answer: --yes never answers outside the allowed characters" {
+    export GAUDI_ASSUME_YES="true"
+    run call gaudi::read_answer "abc" "b" <<< "c"
+    assert_success
+    assert_output_equals "b"
+
+    # No default: the first allowed character
+    run call gaudi::read_answer "abc" "" <<< "c"
+    assert_success
+    assert_output_equals "a"
+}
+
 @test "gaudi::read_answer: without a terminal the default is used" {
     run call gaudi::read_answer "yYnN" "y" <<< "n"
     assert_output_equals "y"

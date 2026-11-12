@@ -19,6 +19,7 @@
 #   FAKE_ZYPPER_FAIL           space-separated packages zypper cannot install ("cache": clean fails)
 #   FAKE_QUERY_FAIL            non-empty: listing the installed packages fails (apt-mark,
 #                              dnf repoquery, pacman -Qqe, zypper packages)
+#   FAKE_RUBY_FAIL             non-empty: ruby fails (listing the user's gems)
 #   FAKE_GEM_FAIL              space-separated gems that fail to install
 #   FAKE_CURL_FAIL             non-empty: every download fails
 #   FAKE_HOMEBREW_INSTALL_FAIL non-empty: the Homebrew installer script fails
@@ -181,6 +182,7 @@ case "$tool" in
 
     ruby)
         # Only used to list the gems in the user's gem directory
+        [[ -n "${FAKE_RUBY_FAIL:-}" ]] && exit 1
         [[ -f "$MACHINE/gem.txt" ]] && sort -u "$MACHINE/gem.txt"
         exit 0
         ;;

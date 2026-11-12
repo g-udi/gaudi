@@ -8,6 +8,12 @@
 # hook or config whose name means it never runs, a list without its array).
 # Warnings are things worth a look. --online also asks Homebrew whether every
 # formula and cask still exists (slow: one lookup per package).
+#
+# Nothing in the templates is changed, but two kinds of file are read by
+# running them: a list file is sourced in a subshell, as setup does, to see
+# its array, and Homebrew evaluates a Brewfile (which is Ruby) to parse it.
+# Hooks and configuration scripts are only parsed. So check templates from a
+# source you would also let set up the machine.
 set -uo pipefail
 
 SOURCE_LOCATION="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
@@ -33,7 +39,14 @@ for argument in "$@"; do
             printf "Unknown option: %s\n" "$argument" >&2
             exit 64
             ;;
-        *) TEMPLATES="$argument" ;;
+        *)
+            # One templates directory: a second one is a mistake, not an override
+            if [[ -n "$TEMPLATES" ]]; then
+                printf "Unexpected argument: %s\n" "$argument" >&2
+                exit 64
+            fi
+            TEMPLATES="$argument"
+            ;;
     esac
 done
 TEMPLATES="${TEMPLATES:-${GAUDI_TEMPLATES_LOCATION:-${GAUDI:-$SOURCE_LOCATION}/templates}}"
@@ -120,6 +133,7 @@ for list_type in $gaudi_list_types; do
         fi
 
         # Read the way setup reads it, so both agree on what the list holds
+        # (this runs the list file, in a subshell)
         list_output="$(gaudi::list_items "$list_file" "$list_name" 2>/dev/null)"
         case "$list_output" in
             ok) concern "$list_file" "the list is empty" ;;
@@ -139,6 +153,8 @@ for list_type in $gaudi_legacy_list_types; do
 done
 
 # --- hooks ---------------------------------------------------------------------
+# Setup finds hooks and configuration scripts whatever the case of their file
+# names (find -iname), so their names are compared the same way here.
 
 hook_is_known() {
     local base="$1"
@@ -166,7 +182,11 @@ while IFS= read -r hook; do
     checked=$((checked + 1))
     base="${hook##*/}"
     parses "$hook" || problem "$hook" "is not valid Bash"
-    if ! hook_is_known "$base"; then
+    shopt -s nocasematch
+    hook_is_known "$base"
+    hook_known=$?
+    shopt -u nocasematch
+    if [[ "$hook_known" -ne 0 ]]; then
         if [[ "$base" == *".bundle-"* ]]; then
             problem "$hook" "never runs: no Brewfile matches its name (have: $(tr '\n' ' ' < "$SCRATCH/brewfile-names"))"
         else
@@ -180,27 +200,37 @@ done < <(gaudi::hook_files "*.hooks.sh" "$TEMPLATES")
 while IFS= read -r config; do
     [[ -n "$config" ]] || continue
     base="${config##*/}"
+    shopt -s nocasematch
     case "$base" in
         *.configs.sh)
-            config_os=""
+            config_kind="shared"
             ;;
         *.configs.*.sh)
-            config_os="${base%.sh}"
-            config_os="${config_os##*.configs.}"
+            config_kind="os"
             ;;
         *)
-            # Only files that sit in a configs directory are expected to be configs
-            if [[ "$config" == */configs/* ]]; then
-                checked=$((checked + 1))
-                problem "$config" "never runs: configs are named <name>.configs.sh or <name>.configs.<os>.sh"
-            fi
-            continue
+            config_kind=""
             ;;
     esac
+    shopt -u nocasematch
+    if [[ -z "$config_kind" ]]; then
+        # Only files that sit in a configs directory are expected to be configs
+        if [[ "$config" == */configs/* ]]; then
+            checked=$((checked + 1))
+            problem "$config" "never runs: configs are named <name>.configs.sh or <name>.configs.<os>.sh"
+        fi
+        continue
+    fi
 
     checked=$((checked + 1))
-    if [[ -n "$config_os" && " $gaudi_known_oses " != *" $config_os "* ]]; then
-        problem "$config" "never runs: '$config_os' is not one of: $gaudi_known_oses"
+    if [[ "$config_kind" == "os" ]]; then
+        # The OS part, in lower case like the names in gaudi_known_oses
+        config_os="$(printf "%s" "$base" | tr '[:upper:]' '[:lower:]')"
+        config_os="${config_os%.sh}"
+        config_os="${config_os##*.configs.}"
+        if [[ " $gaudi_known_oses " != *" $config_os "* ]]; then
+            problem "$config" "never runs: '$config_os' is not one of: $gaudi_known_oses"
+        fi
     fi
     if ! parses "$config"; then
         problem "$config" "is not valid Bash"
@@ -208,7 +238,7 @@ while IFS= read -r config; do
     fi
     gaudi::config_defines_command "$config" || problem "$config" "does not define _command, so it is skipped"
     grep -Eq '^[[:space:]]*_info=' "$config" || concern "$config" "has no _info: the file name is shown instead"
-done < <(find "$TEMPLATES" -type f -name "*.sh" ! -name "*.hooks.sh" ! -name "*.list.sh" -print | sort)
+done < <(find "$TEMPLATES" -type f -iname "*.sh" ! -iname "*.hooks.sh" ! -iname "*.list.sh" -print | sort)
 
 # --- dotfiles --------------------------------------------------------------------
 

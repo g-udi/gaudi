@@ -88,10 +88,13 @@ old_mac_with_software() {
     GAUDI_REPO_URL="file://$(gaudi_remote)"
     export GAUDI_REPO_URL
     export GAUDI_DEFAULT_TEMPLATES_URL="$SANDBOX/remotes/my-templates"
+    # --yes also installs the shell helpers: gaudi-shell comes from a local stand-in
+    gshell_remote
 
     run bash "$GAUDI_ROOT/install.sh" --yes </dev/null
     assert_success
     assert_output_contains "[OK] Gaudi setup finished"
+    assert_called "gaudi-shell-setup --silent --shell zsh"
     assert_file_exists "$HOME/.gaudi/templates/lists/Brewfile"
     assert_equal "$(brew_state "$NEW")" "$(brew_state "$OLD")"
 }
